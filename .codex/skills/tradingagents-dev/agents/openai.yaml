@@ -1,0 +1,4 @@
+interface:
+  display_name: "TradingAgents Dev"
+  short_description: "Repo-specific Python, market-data, and test workflow guidance"
+
