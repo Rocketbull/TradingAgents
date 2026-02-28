@@ -29,6 +29,41 @@ class AttributionEngine:
             "realized_information_ratio": realized_ir,
         }
 
+    def cross_sectional_ic(
+        self, alpha_scores: pd.Series, realized_returns: Optional[pd.Series]
+    ) -> float:
+        return self._ic(alpha_scores, realized_returns)
+
+    @staticmethod
+    def top_bottom_spread(
+        alpha_scores: pd.Series,
+        realized_returns: Optional[pd.Series],
+        quantiles: int = 5,
+    ) -> float:
+        if realized_returns is None:
+            return float("nan")
+        aligned = pd.concat([alpha_scores, realized_returns], axis=1).dropna()
+        if aligned.shape[0] < quantiles:
+            return float("nan")
+        aligned.columns = ["alpha", "ret"]
+        bins = pd.qcut(aligned["alpha"], q=quantiles, labels=False, duplicates="drop")
+        if bins.nunique() < 2:
+            return float("nan")
+        top_bucket = aligned.loc[bins == bins.max(), "ret"].mean()
+        bottom_bucket = aligned.loc[bins == bins.min(), "ret"].mean()
+        return float(top_bucket - bottom_bucket)
+
+    def top_bottom_hit(
+        self,
+        alpha_scores: pd.Series,
+        realized_returns: Optional[pd.Series],
+        quantiles: int = 5,
+    ) -> float:
+        spread = self.top_bottom_spread(alpha_scores, realized_returns, quantiles=quantiles)
+        if pd.isna(spread):
+            return float("nan")
+        return 1.0 if spread > 0 else 0.0
+
     @staticmethod
     def _ic(alpha_scores: pd.Series, realized_returns: Optional[pd.Series]) -> float:
         if realized_returns is None:

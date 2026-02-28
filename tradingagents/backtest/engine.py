@@ -87,16 +87,25 @@ class BacktestEngine:
             close_prices = close_prices.sort_index().copy()
             close_prices = close_prices.loc[close_prices.index <= pd.Timestamp(end_dt)]
 
+        benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
+        benchmark_series = (
+            close_prices[benchmark_symbol].copy()
+            if benchmark_symbol in close_prices.columns
+            else pd.Series(0.0, index=close_prices.index)
+        )
+        tradable_prices = close_prices.drop(columns=[benchmark_symbol], errors="ignore")
+        if tradable_prices.shape[1] < 2:
+            raise ValueError("Need at least 2 tradable symbols after excluding benchmark.")
+
         rebalance_dates = [
-            d for d in self._rebalance_dates(close_prices.index)
+            d for d in self._rebalance_dates(tradable_prices.index)
             if pd.Timestamp(start_dt) <= d <= pd.Timestamp(end_dt)
         ]
         if len(rebalance_dates) < 2:
             raise ValueError("Need at least 2 rebalance dates in backtest window")
 
-        benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
         initial_capital = float(self.config.get("initial_capital", self.config.get("portfolio_value", 1_000_000.0)))
-        current_weights = self._equal_weights(close_prices.columns)
+        current_weights = self._equal_weights(tradable_prices.columns)
         nav = initial_capital
 
         equity_rows: list[dict] = []
@@ -113,48 +122,59 @@ class BacktestEngine:
             rebalance_date = rebalance_dates[i]
             next_date = rebalance_dates[i + 1]
 
-            history = close_prices.loc[:rebalance_date]
+            history = tradable_prices.loc[:rebalance_date]
             if history.shape[0] < warmup_rows:
                 continue
             alpha_scores = self.alpha_model.score(history)
             covariance = self.risk_model.covariance(history)
 
+            # Benchmark is not tradable in active portfolio construction.
             benchmark_weights = pd.Series(0.0, index=alpha_scores.index)
-            if benchmark_symbol in benchmark_weights.index:
-                benchmark_weights.loc[benchmark_symbol] = 1.0
-            else:
-                benchmark_weights[:] = 1.0 / len(benchmark_weights)
 
-            target_weights = self.optimizer.optimize(
+            target_weights, optimizer_details = self.optimizer.optimize(
                 alpha_scores=alpha_scores,
                 covariance=covariance,
                 current_weights=current_weights,
                 benchmark_weights=benchmark_weights.to_dict(),
+                return_details=True,
             )
-            orders = self.rebalancer.generate_orders(
-                current_weights=current_weights,
-                target_weights=target_weights,
-                portfolio_value=nav,
+            raw_target_weights = optimizer_details.get("raw_target_weights", target_weights)
+            raw_turnover = sum(
+                abs(float(raw_target_weights.get(s, 0.0)) - float(current_weights.get(s, 0.0)))
+                for s in set(current_weights) | set(raw_target_weights)
             )
             nav_after_costs, effective_weights, turnover, total_cost = self.accounting.apply_rebalance(
                 nav_before=nav,
                 current_weights=current_weights,
                 target_weights=target_weights,
             )
+            orders = self.rebalancer.generate_orders(
+                current_weights=current_weights,
+                target_weights=effective_weights,
+                portfolio_value=nav,
+            )
 
-            price_now = close_prices.loc[rebalance_date].reindex(alpha_scores.index).astype(float)
-            price_next = close_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
+            price_now = tradable_prices.loc[rebalance_date].reindex(alpha_scores.index).astype(float)
+            price_next = tradable_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
             symbol_returns = ((price_next / price_now) - 1.0).replace([pd.NA], 0.0).fillna(0.0).to_dict()
             nav_after_period, portfolio_return = self.accounting.step_nav(
                 nav_after_rebalance=nav_after_costs,
                 weights=effective_weights,
                 symbol_returns=symbol_returns,
             )
-            benchmark_return = float(symbol_returns.get(benchmark_symbol, 0.0))
+            bench_now = float(benchmark_series.loc[rebalance_date]) if rebalance_date in benchmark_series.index else 0.0
+            bench_next = float(benchmark_series.loc[next_date]) if next_date in benchmark_series.index else 0.0
+            benchmark_return = (bench_next / bench_now - 1.0) if bench_now > 0 else 0.0
             metrics = self.attribution.diagnostics(
                 alpha_scores=alpha_scores,
                 realized_returns=pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0),
                 target_weights=effective_weights,
+            )
+            horizon_metrics = self._horizon_metrics(
+                close_prices=tradable_prices,
+                rebalance_dates=rebalance_dates,
+                rebalance_index=i,
+                alpha_scores=alpha_scores,
             )
 
             row = {
@@ -164,9 +184,13 @@ class BacktestEngine:
                 "portfolio_return": portfolio_return,
                 "benchmark_return": benchmark_return,
                 "turnover": turnover,
+                "raw_turnover": raw_turnover,
+                "executed_turnover": turnover,
+                "turnover_constraint_drag": max(raw_turnover - turnover, 0.0),
                 "cost": total_cost,
             }
             row.update({f"metric_{k}": float(v) for k, v in metrics.items()})
+            row.update({f"metric_{k}": float(v) for k, v in horizon_metrics.items()})
             equity_rows.append(row)
 
             rebalance_log.append(
@@ -179,8 +203,10 @@ class BacktestEngine:
                     "turnover": turnover,
                     "cost": total_cost,
                     "orders_count": len(orders),
+                    "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "portfolio_metrics": metrics,
+                    "horizon_metrics": horizon_metrics,
                 }
             )
             for order in orders:
@@ -221,6 +247,39 @@ class BacktestEngine:
             "rebalance_log": rebalance_log,
             "output_dir": str(out_dir),
         }
+
+    def _horizon_metrics(
+        self,
+        close_prices: pd.DataFrame,
+        rebalance_dates: list[pd.Timestamp],
+        rebalance_index: int,
+        alpha_scores: pd.Series,
+    ) -> Dict[str, float]:
+        horizons = list(self.config.get("ic_horizons", [1, 2, 4]))
+        quantiles = int(self.config.get("quantile_buckets", 5))
+        metrics: Dict[str, float] = {}
+        date0 = rebalance_dates[rebalance_index]
+        px0 = close_prices.loc[date0].reindex(alpha_scores.index).astype(float)
+
+        for h in horizons:
+            key = int(h)
+            future_idx = rebalance_index + key
+            if key < 1 or future_idx >= len(rebalance_dates):
+                continue
+            date_h = rebalance_dates[future_idx]
+            pxh = close_prices.loc[date_h].reindex(alpha_scores.index).astype(float)
+            realized = ((pxh / px0) - 1.0).replace([pd.NA], 0.0).fillna(0.0)
+            ic_h = self.attribution.cross_sectional_ic(alpha_scores, realized)
+            spread_h = self.attribution.top_bottom_spread(
+                alpha_scores, realized, quantiles=quantiles
+            )
+            hit_h = self.attribution.top_bottom_hit(
+                alpha_scores, realized, quantiles=quantiles
+            )
+            metrics[f"ic_h{key}"] = float(ic_h)
+            metrics[f"spread_h{key}"] = float(spread_h)
+            metrics[f"hit_h{key}"] = float(hit_h)
+        return metrics
 
     def _rebalance_dates(self, trading_index: pd.Index) -> list[pd.Timestamp]:
         freq = str(self.config.get("rebalance_frequency", "weekly")).lower()

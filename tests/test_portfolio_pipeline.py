@@ -45,6 +45,25 @@ def test_optimizer_constraints_and_turnover():
     assert turnover <= 0.10 + 1e-6
 
 
+def test_optimizer_returns_details():
+    closes = _price_frame()
+    alpha = AlphaModel().score(closes)
+    cov = RiskModel().covariance(closes)
+    optimizer = PortfolioOptimizer(max_weight=0.40, turnover_limit=0.10)
+    current = {symbol: 0.25 for symbol in alpha.index}
+    target, details = optimizer.optimize(
+        alpha,
+        cov,
+        current_weights=current,
+        benchmark_weights={"SPY": 1.0},
+        return_details=True,
+    )
+    assert isinstance(target, dict)
+    assert "raw_target_weights" in details
+    assert "target_weights" in details
+    assert set(details["target_weights"]) == set(target)
+
+
 def test_rebalancer_generates_orders():
     reb = Rebalancer(transaction_cost_bps=10.0)
     current = {"AAA": 0.5, "BBB": 0.5}
@@ -57,4 +76,3 @@ def test_rebalancer_generates_orders():
     assert by_symbol["BBB"]["action"] == "BUY"
     assert by_symbol["AAA"]["estimated_cost"] > 0
     assert by_symbol["BBB"]["estimated_cost"] > 0
-

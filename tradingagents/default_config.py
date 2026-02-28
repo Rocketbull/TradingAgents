@@ -42,6 +42,8 @@ DEFAULT_CONFIG = {
     "min_trade_notional": 0.0,
     "data_root": "data/market",
     "symbol_file": "data/market/sp500_symbols.txt",
+    "ic_horizons": [1, 2, 4],      # In rebalance steps
+    "quantile_buckets": 5,         # For top-bottom spread/hit diagnostics
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {

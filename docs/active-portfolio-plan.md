@@ -290,8 +290,55 @@ Mitigation:
 - [ ] Confirm fallback policy for optimizer infeasibility.
 - [ ] Confirm reporting schema for diagnostics and rebalance logs.
 
+## 10) Active Portfolio Management Enhancements (New)
+
+This section extends the plan with concepts directly aligned with Grinold/Kahn active management.
+
+### 10.1 Forecast Quality Layer
+- Add rolling IC by horizon (for example, 1/2/4 rebalance periods).
+- Add top-minus-bottom quantile spread and hit-rate diagnostics.
+- Use these diagnostics to support alpha confidence scaling.
+
+### 10.2 Fundamental Law Dashboard
+- Track and report:
+  - average IC,
+  - breadth proxy,
+  - transfer coefficient proxy,
+  - implied IR (`IC * sqrt(Breadth) * TC`),
+  - realized active IR.
+- Compare implied IR vs realized IR per run.
+
+### 10.3 Constraint-Aware Alpha Translation
+- Preserve both pre-constraint and post-constraint target weights.
+- Quantify turnover drag from constraints and implementation.
+
+### 10.4 Active Risk and Cost Governance
+- Maintain benchmark-relative risk stats (tracking error already present, extend over time).
+- Track transaction cost drag and turnover decomposition:
+  - raw turnover,
+  - executed turnover,
+  - constraint drag.
+
+### 10.5 Robustness Protocol
+- Walk-forward backtest windows and fixed-seed reproducibility.
+- Stress test knobs:
+  - higher transaction cost,
+  - tighter turnover limits,
+  - smaller universe,
+  - delayed rebalance schedule.
+
+### 10.6 Implementation Mapping
+- `tradingagents/backtest/engine.py`
+  - add horizon IC/spread/hit metrics per rebalance row.
+  - add turnover decomposition fields per rebalance row.
+- `tradingagents/backtest/metrics.py`
+  - add Fundamental Law summary and horizon diagnostic aggregates.
+- `tradingagents/portfolio/optimizer.py`
+  - optionally emit pre-constraint and post-constraint targets.
+- `notebooks/demo_backtest_viewer.ipynb`
+  - add visualizations for new diagnostic columns.
+
 ## Assumptions and Defaults Chosen
 - Save location: `docs/active-portfolio-plan.md`.
 - First implementation stack: PyPortfolioOpt baseline, with extension points for Riskfolio-Lib/cvxportfolio later.
 - Initial operating mode: long-only active weights versus benchmark, weekly rebalance, constrained turnover.
-

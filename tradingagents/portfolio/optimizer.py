@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 import numpy as np
 import pandas as pd
@@ -25,7 +25,8 @@ class PortfolioOptimizer:
         covariance: pd.DataFrame,
         current_weights: Optional[Dict[str, float]] = None,
         benchmark_weights: Optional[Dict[str, float]] = None,
-    ) -> Dict[str, float]:
+        return_details: bool = False,
+    ) -> Dict[str, float] | tuple[Dict[str, float], Dict[str, Any]]:
         symbols = list(alpha_scores.index)
         if not symbols:
             raise ValueError("alpha_scores cannot be empty")
@@ -33,11 +34,24 @@ class PortfolioOptimizer:
         current = self._align_weights(symbols, current_weights)
         benchmark = self._align_weights(symbols, benchmark_weights)
 
+        details: Dict[str, Any] = {
+            "backend": "pypfopt",
+            "used_fallback": False,
+        }
         try:
-            return self._optimize_with_pypfopt(alpha_scores, covariance, current, benchmark)
+            target, raw_target = self._optimize_with_pypfopt(
+                alpha_scores, covariance, current, benchmark
+            )
         except Exception:
-            # Stable fallback in case dependency or optimization fails.
-            return self._fallback_optimize(alpha_scores, current, benchmark)
+            details["backend"] = "fallback"
+            details["used_fallback"] = True
+            target, raw_target = self._fallback_optimize(alpha_scores, current, benchmark)
+
+        details["raw_target_weights"] = raw_target
+        details["target_weights"] = target
+        if return_details:
+            return target, details
+        return target
 
     def _optimize_with_pypfopt(
         self,
@@ -45,7 +59,7 @@ class PortfolioOptimizer:
         covariance: pd.DataFrame,
         current: pd.Series,
         benchmark: pd.Series,
-    ) -> Dict[str, float]:
+    ) -> tuple[Dict[str, float], Dict[str, float]]:
         from pypfopt import EfficientFrontier
 
         mu = (benchmark + alpha_scores).to_dict()
@@ -58,14 +72,16 @@ class PortfolioOptimizer:
         )
         ef.max_quadratic_utility(risk_aversion=self.risk_aversion)
         weights = pd.Series(ef.clean_weights()).reindex(alpha_scores.index).fillna(0.0)
-        return self._apply_turnover(weights, current).to_dict()
+        raw_target = weights.copy()
+        adjusted = self._apply_turnover(weights, current)
+        return adjusted.to_dict(), raw_target.to_dict()
 
     def _fallback_optimize(
         self,
         alpha_scores: pd.Series,
         current: pd.Series,
         benchmark: pd.Series,
-    ) -> Dict[str, float]:
+    ) -> tuple[Dict[str, float], Dict[str, float]]:
         active = alpha_scores.clip(lower=0.0)
         if active.sum() <= 0:
             active = pd.Series(1.0, index=alpha_scores.index)
@@ -77,7 +93,9 @@ class PortfolioOptimizer:
             target = pd.Series(1.0 / len(target), index=target.index)
         else:
             target = target / target.sum()
-        return self._apply_turnover(target, current).to_dict()
+        raw_target = target.copy()
+        adjusted = self._apply_turnover(target, current)
+        return adjusted.to_dict(), raw_target.to_dict()
 
     def _apply_turnover(self, target: pd.Series, current: pd.Series) -> pd.Series:
         turnover = float((target - current).abs().sum())
@@ -101,4 +119,3 @@ class PortfolioOptimizer:
         if total <= 0:
             return pd.Series(1.0 / len(symbols), index=symbols)
         return s / total
-

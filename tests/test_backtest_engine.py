@@ -39,6 +39,10 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     summary = result["summary"]
     assert summary["rebalance_points"] > 1
     assert "total_return" in summary
+    assert "implied_information_ratio" in summary
+    assert "realized_active_information_ratio" in summary
+    assert "average_raw_turnover" in summary
+    assert "h1_average_ic" in summary
     assert Path(result["output_dir"]).exists()
     assert (Path(result["output_dir"]) / "equity_curve.csv").exists()
     assert (Path(result["output_dir"]) / "rebalance_log.jsonl").exists()
