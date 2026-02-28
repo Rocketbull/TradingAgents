@@ -21,8 +21,8 @@ from tradingagents.agents.utils.agent_states import (
     RiskDebateState,
 )
 from tradingagents.dataflows.config import set_config
+from tradingagents.alpha import AlphaModel
 from tradingagents.portfolio import (
-    AlphaModel,
     RiskModel,
     PortfolioOptimizer,
     Rebalancer,
@@ -102,7 +102,7 @@ class TradingAgentsGraph:
         self.portfolio_log_states_dict: Dict[str, Dict[str, Any]] = {}
 
         # Portfolio components (used when portfolio_mode=True)
-        self.alpha_model = AlphaModel()
+        self.alpha_model = AlphaModel.from_config(self.config)
         self.risk_model = RiskModel(lookback_days=self.config.get("alpha_lookback_days", 252))
         self.portfolio_optimizer = PortfolioOptimizer(
             risk_aversion=float(self.config.get("risk_aversion", 3.0)),

@@ -44,6 +44,26 @@ DEFAULT_CONFIG = {
     "symbol_file": "data/market/sp500_symbols.txt",
     "ic_horizons": [1, 2, 4],      # In rebalance steps
     "quantile_buckets": 5,         # For top-bottom spread/hit diagnostics
+    "alpha_signals": [
+        "mom_1m",
+        "mom_3m",
+        "mom_6m",
+        "mom_12m",
+        "rev_1w",
+        "rev_1m",
+        "low_vol",
+        "downside_vol",
+        "trend_12m_1m",
+        "breakout_52w",
+    ],
+    # Optional signal registry to fully define alpha signals from config.
+    # When non-empty, AlphaModel.from_config() builds signals from this list.
+    # Example item: {"type": "momentum", "name": "mom_3m", "window": 63, "enabled": True}
+    "alpha_signal_registry": [],
+    "ic_lookback_rebalances": 26,
+    "ic_weighting_mode": "positive",   # positive, signed
+    "alpha_corr_penalty": 0.35,
+    "alpha_min_ic_weight": 0.0,
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {

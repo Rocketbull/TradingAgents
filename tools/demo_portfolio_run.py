@@ -8,9 +8,9 @@ from typing import Dict, Iterable, Optional
 
 import pandas as pd
 
+from tradingagents.alpha import AlphaModel
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import (
-    AlphaModel,
     AttributionEngine,
     PortfolioOptimizer,
     Rebalancer,
@@ -163,7 +163,7 @@ def main() -> None:
     cfg = DEFAULT_CONFIG.copy()
     cfg["benchmark_symbol"] = args.benchmark_symbol.upper()
 
-    alpha_model = AlphaModel()
+    alpha_model = AlphaModel.from_config(cfg)
     risk_model = RiskModel(lookback_days=int(cfg.get("alpha_lookback_days", 252)))
     optimizer = PortfolioOptimizer(
         risk_aversion=float(cfg.get("risk_aversion", 3.0)),

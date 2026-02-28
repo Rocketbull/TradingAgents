@@ -8,9 +8,9 @@ from typing import Any, Dict, Iterable, Optional
 
 import pandas as pd
 
+from tradingagents.alpha import AlphaModel
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import (
-    AlphaModel,
     AttributionEngine,
     PortfolioOptimizer,
     Rebalancer,
@@ -31,7 +31,7 @@ class BacktestEngine:
         merged.update(self.config or {})
         self.config = merged
 
-        self.alpha_model = AlphaModel()
+        self.alpha_model = AlphaModel.from_config(self.config)
         self.risk_model = RiskModel(lookback_days=int(self.config.get("alpha_lookback_days", 252)))
         self.optimizer = PortfolioOptimizer(
             risk_aversion=float(self.config.get("risk_aversion", 3.0)),
@@ -112,6 +112,7 @@ class BacktestEngine:
         rebalance_log: list[dict] = []
         orders_rows: list[dict] = []
         weights_rows: list[dict] = []
+        signal_ic_history: Dict[str, list[float]] = {}
         warmup_rows = max(
             int(self.risk_model.lookback_days) + 1,
             int(self.alpha_model.long_lookback) + 1,
@@ -125,7 +126,21 @@ class BacktestEngine:
             history = tradable_prices.loc[:rebalance_date]
             if history.shape[0] < warmup_rows:
                 continue
-            alpha_scores = self.alpha_model.score(history)
+            signals = list(
+                self.config.get(
+                    "alpha_signals",
+                    ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"],
+                )
+            )
+            components = self.alpha_model.component_scores(history, signals=signals)
+            alpha_scores, alpha_weights = self.alpha_model.ic_weighted_alpha(
+                components,
+                ic_history=signal_ic_history,
+                ic_lookback=int(self.config.get("ic_lookback_rebalances", 26)),
+                weighting_mode=str(self.config.get("ic_weighting_mode", "positive")),
+                corr_penalty=float(self.config.get("alpha_corr_penalty", 0.35)),
+                min_abs_weight=float(self.config.get("alpha_min_ic_weight", 0.0)),
+            )
             covariance = self.risk_model.covariance(history)
 
             # Benchmark is not tradable in active portfolio construction.
@@ -157,6 +172,15 @@ class BacktestEngine:
             price_now = tradable_prices.loc[rebalance_date].reindex(alpha_scores.index).astype(float)
             price_next = tradable_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
             symbol_returns = ((price_next / price_now) - 1.0).replace([pd.NA], 0.0).fillna(0.0).to_dict()
+            realized_series = pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0)
+            signal_ic_now: Dict[str, float] = {}
+            for signal_name in components.columns:
+                ic_val = self.attribution.cross_sectional_ic(
+                    components[signal_name].reindex(alpha_scores.index), realized_series
+                )
+                signal_ic_now[signal_name] = float(ic_val)
+                signal_ic_history.setdefault(signal_name, []).append(float(ic_val))
+
             nav_after_period, portfolio_return = self.accounting.step_nav(
                 nav_after_rebalance=nav_after_costs,
                 weights=effective_weights,
@@ -167,7 +191,7 @@ class BacktestEngine:
             benchmark_return = (bench_next / bench_now - 1.0) if bench_now > 0 else 0.0
             metrics = self.attribution.diagnostics(
                 alpha_scores=alpha_scores,
-                realized_returns=pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0),
+                realized_returns=realized_series,
                 target_weights=effective_weights,
             )
             horizon_metrics = self._horizon_metrics(
@@ -205,6 +229,8 @@ class BacktestEngine:
                     "orders_count": len(orders),
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
+                    "alpha_weights": {k: float(v) for k, v in alpha_weights.items()},
+                    "signal_ic": signal_ic_now,
                     "portfolio_metrics": metrics,
                     "horizon_metrics": horizon_metrics,
                 }

@@ -48,3 +48,5 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     assert (Path(result["output_dir"]) / "rebalance_log.jsonl").exists()
     assert (Path(result["output_dir"]) / "weights_history.csv").exists()
     assert (Path(result["output_dir"]) / "orders_history.csv").exists()
+    assert "alpha_weights" in result["rebalance_log"][0]
+    assert "signal_ic" in result["rebalance_log"][0]

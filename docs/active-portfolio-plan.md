@@ -220,7 +220,7 @@ Portfolio-level fields planned from Phase 1:
 - `rebalance_orders`
 
 ### New planned modules
-- `tradingagents/portfolio/alpha_model.py`
+- `tradingagents/alpha/model.py`
 - `tradingagents/portfolio/risk_model.py`
 - `tradingagents/portfolio/optimizer.py`
 - `tradingagents/portfolio/rebalance.py`
