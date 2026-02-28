@@ -9,15 +9,15 @@ This repository is configured for Codex-first development.
 
 ## Environment
 - Python: `>=3.10` (see `pyproject.toml`)
-- Always activate project env first: `source .conda/tradingagents/bin/activate`
-- Install deps: `source .conda/tradingagents/bin/activate && pip install -r requirements.txt`
-- Optional editable install: `source .conda/tradingagents/bin/activate && pip install -e .`
+- Use project env binaries directly from `.conda/tradingagents/bin/`.
+- Install deps: `.conda/tradingagents/bin/pip install -r requirements.txt`
+- Optional editable install: `.conda/tradingagents/bin/pip install -e .`
 
 ## Common Commands
-- Run CLI: `source .conda/tradingagents/bin/activate && python -m cli.main`
-- Run quick script: `source .conda/tradingagents/bin/activate && python main.py`
-- Run tests: `source .conda/tradingagents/bin/activate && pytest -q`
-- Run one test: `source .conda/tradingagents/bin/activate && pytest -q tests/test_y_finance_history.py`
+- Run CLI: `.conda/tradingagents/bin/python -m cli.main`
+- Run quick script: `.conda/tradingagents/bin/python main.py`
+- Run tests: `.conda/tradingagents/bin/python -m pytest -q`
+- Run one test: `.conda/tradingagents/bin/python -m pytest -q tests/test_y_finance_history.py`
 
 ## Code Standards
 - Keep functions small and focused.

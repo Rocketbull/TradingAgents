@@ -21,3 +21,5 @@ questionary
 langchain_anthropic
 langchain-google-genai
 pyarrow
+PyPortfolioOpt
+alphalens-reloaded

@@ -1,4 +1,4 @@
-from typing import Annotated, Sequence
+from typing import Annotated, Sequence, Dict, List, Any
 from datetime import date, timedelta, datetime
 from typing_extensions import TypedDict, Optional
 from langchain_openai import ChatOpenAI
@@ -74,3 +74,12 @@ class AgentState(MessagesState):
         RiskDebateState, "Current state of the debate on evaluating risk"
     ]
     final_trade_decision: Annotated[str, "Final decision made by the Risk Analysts"]
+
+    # active portfolio management state
+    universe: Annotated[List[str], "Universe of symbols in current rebalance cycle"]
+    alpha_scores: Annotated[Dict[str, float], "Expected active return proxy by symbol"]
+    benchmark_weights: Annotated[Dict[str, float], "Benchmark weights by symbol"]
+    current_weights: Annotated[Dict[str, float], "Current portfolio weights by symbol"]
+    target_weights: Annotated[Dict[str, float], "Target portfolio weights by symbol"]
+    rebalance_orders: Annotated[List[Dict[str, Any]], "Rebalance trade instructions"]
+    portfolio_metrics: Annotated[Dict[str, float], "Attribution and risk diagnostics"]

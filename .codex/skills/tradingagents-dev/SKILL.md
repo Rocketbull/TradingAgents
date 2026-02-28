@@ -8,10 +8,10 @@ description: Use when working on this TradingAgents repo for market-data tooling
 Use this skill for coding tasks in this repository.
 
 ## Quick Start
-1. Activate env first: `source .conda/tradingagents/bin/activate`
-2. Install dependencies: `source .conda/tradingagents/bin/activate && pip install -r requirements.txt`
-3. Run tests: `source .conda/tradingagents/bin/activate && pytest -q`
-4. Run CLI: `source .conda/tradingagents/bin/activate && python -m cli.main`
+1. Use env binaries from `.conda/tradingagents/bin/`.
+2. Install dependencies: `.conda/tradingagents/bin/pip install -r requirements.txt`
+3. Run tests: `.conda/tradingagents/bin/python -m pytest -q`
+4. Run CLI: `.conda/tradingagents/bin/python -m cli.main`
 
 ## Repo Landmarks
 - `tools/`: local scripts (market data downloaders, utilities)
@@ -41,4 +41,4 @@ For constituent-driven downloads:
 - Keep ASCII unless file already uses Unicode.
 - Avoid broad refactors unless requested.
 - Keep changes minimal and consistent with current style.
-- For any Python/pip/pytest command, always prefix with `source .conda/tradingagents/bin/activate &&`.
+- For Python/pip/pytest commands, use `.conda/tradingagents/bin/python` and `.conda/tradingagents/bin/pip`.

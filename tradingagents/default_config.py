@@ -19,6 +19,20 @@ DEFAULT_CONFIG = {
     "max_debate_rounds": 1,
     "max_risk_discuss_rounds": 1,
     "max_recur_limit": 100,
+    # Portfolio management mode
+    "portfolio_mode": False,
+    "benchmark_symbol": "SPY",
+    "universe_source": "single_symbol",   # single_symbol, config_list, sp500_file
+    "portfolio_universe": [],             # Used when universe_source=config_list
+    "portfolio_universe_size": 50,        # Used when universe_source=sp500_file
+    "rebalance_frequency": "weekly",      # daily, weekly, monthly
+    "max_weight": 0.05,
+    "sector_cap": 0.25,
+    "turnover_limit": 0.20,
+    "risk_aversion": 3.0,
+    "transaction_cost_bps": 5.0,
+    "portfolio_value": 1000000.0,
+    "alpha_lookback_days": 252,
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
