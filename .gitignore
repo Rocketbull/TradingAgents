@@ -162,9 +162,9 @@ venv.bak/
 data/*
 !data/.gitkeep
 
-# Local data folder cache – keep folder by tracking the placeholder
-data/*
-!data/.gitkeep
+# Backtest/demo outputs – keep folder by tracking the placeholder
+eval_results/*
+!eval_results/.gitkeep
 
 # Spyder project settings
 .spyderproject

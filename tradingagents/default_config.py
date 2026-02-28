@@ -33,6 +33,15 @@ DEFAULT_CONFIG = {
     "transaction_cost_bps": 5.0,
     "portfolio_value": 1000000.0,
     "alpha_lookback_days": 252,
+    # Backtest settings
+    "backtest_start_date": None,
+    "backtest_end_date": None,
+    "backtest_output_dir": None,
+    "initial_capital": 1000000.0,
+    "slippage_bps": 0.0,
+    "min_trade_notional": 0.0,
+    "data_root": "data/market",
+    "symbol_file": "data/market/sp500_symbols.txt",
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
