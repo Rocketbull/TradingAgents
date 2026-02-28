@@ -165,18 +165,35 @@ class AlphaModel:
         weighting_mode: str = "positive",
         corr_penalty: float = 0.35,
         min_abs_weight: float = 0.0,
+        prev_weights: Mapping[str, float] | None = None,
+        weight_smoothing: float = 0.0,
+        max_signal_weight: float | None = None,
+        ic_ewm_decay: float = 0.0,
     ) -> tuple[pd.Series, Dict[str, float]]:
+        # TODO(framework-stage, deferred):
+        # 1) Add IC threshold gating to zero-out persistently weak signals.
+        # 2) Add IC significance gating (t-stat / hit-rate filter) before non-zero weights.
         if components.empty:
             return pd.Series(dtype=float), {}
 
         ic_history = ic_history or {}
         mean_ic = pd.Series(index=components.columns, dtype=float)
+        ic_ewm_decay = float(np.clip(ic_ewm_decay, 0.0, 0.999))
         for name in components.columns:
             values = list(ic_history.get(name, []))
             tail = values[-int(ic_lookback) :] if ic_lookback > 0 else values
             tail_arr = np.asarray(tail, dtype=float)
             finite = tail_arr[np.isfinite(tail_arr)]
-            mean_ic.loc[name] = float(finite.mean()) if finite.size > 0 else np.nan
+            if finite.size == 0:
+                mean_ic.loc[name] = np.nan
+                continue
+            if ic_ewm_decay > 0 and finite.size > 1:
+                # EWMA with stronger weight on recent observations.
+                weights = np.power(ic_ewm_decay, np.arange(finite.size - 1, -1, -1))
+                weights = weights / weights.sum()
+                mean_ic.loc[name] = float(np.sum(finite * weights))
+            else:
+                mean_ic.loc[name] = float(finite.mean())
 
         if weighting_mode == "signed":
             base = mean_ic.fillna(0.0)
@@ -207,6 +224,23 @@ class AlphaModel:
             norm = pd.Series(1.0 / len(penalized), index=penalized.index, dtype=float)
         else:
             norm = penalized / denom
+
+        if max_signal_weight is not None and float(max_signal_weight) > 0:
+            max_w = float(max_signal_weight)
+            sign = np.sign(norm)
+            capped_abs = norm.abs().clip(upper=max_w)
+            if float(capped_abs.sum()) > 0:
+                norm = sign * capped_abs
+                norm = norm / float(norm.abs().sum())
+
+        smooth = float(np.clip(weight_smoothing, 0.0, 0.95))
+        if prev_weights and smooth > 0:
+            prev = pd.Series(prev_weights, dtype=float).reindex(norm.index).fillna(0.0)
+            if float(prev.abs().sum()) > 0:
+                prev = prev / float(prev.abs().sum())
+                norm = (1.0 - smooth) * norm + smooth * prev
+                if float(norm.abs().sum()) > 0:
+                    norm = norm / float(norm.abs().sum())
 
         composite = cross_sectional_zscore(components.mul(norm, axis=1).sum(axis=1))
         return composite, {name: float(norm.loc[name]) for name in norm.index}

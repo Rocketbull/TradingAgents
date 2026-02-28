@@ -22,9 +22,13 @@ DEFAULT_CONFIG = {
     # Portfolio management mode
     "portfolio_mode": False,
     "benchmark_symbol": "SPY",
-    "universe_source": "single_symbol",   # single_symbol, config_list, sp500_file
+    "universe_source": "single_symbol",   # single_symbol, config_list, sp500_file, sp500_snapshot
     "portfolio_universe": [],             # Used when universe_source=config_list
     "portfolio_universe_size": 50,        # Used when universe_source=sp500_file
+    "universe_snapshot_dir": "data/market/universe",
+    "dynamic_liquidity_filter": False,
+    "liquidity_top_n": 100,
+    "liquidity_lookback_days": 60,
     "rebalance_frequency": "weekly",      # daily, weekly, monthly
     "max_weight": 0.05,
     "sector_cap": 0.25,
@@ -42,6 +46,11 @@ DEFAULT_CONFIG = {
     "min_trade_notional": 0.0,
     "data_root": "data/market",
     "symbol_file": "data/market/sp500_symbols.txt",
+    "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
+    "fetch_missing_sector_data": True,
+    "auto_refresh_sector_cache_on_low_coverage": True,
+    "min_sector_coverage": 0.70,
+    "min_beta_coverage": 0.70,
     "ic_horizons": [1, 2, 4],      # In rebalance steps
     "quantile_buckets": 5,         # For top-bottom spread/hit diagnostics
     "alpha_signals": [
@@ -64,6 +73,9 @@ DEFAULT_CONFIG = {
     "ic_weighting_mode": "positive",   # positive, signed
     "alpha_corr_penalty": 0.35,
     "alpha_min_ic_weight": 0.0,
+    "alpha_weight_smoothing": 0.25,
+    "alpha_max_signal_weight": 0.35,
+    "ic_ewm_decay": 0.85,
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {

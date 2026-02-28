@@ -14,6 +14,7 @@ class LocalParquetDataLoader:
 
     data_root: Path
     symbol_file: Optional[Path] = None
+    universe_snapshot_dir: Optional[Path] = None
 
     @staticmethod
     def _parse_history_name(path: Path) -> Optional[tuple[datetime, datetime]]:
@@ -39,6 +40,7 @@ class LocalParquetDataLoader:
         portfolio_universe_size: int,
         benchmark_symbol: str,
         fallback_symbol: str,
+        asof_date: Optional[str] = None,
     ) -> list[str]:
         source = universe_source.lower()
         benchmark = benchmark_symbol.upper()
@@ -53,6 +55,15 @@ class LocalParquetDataLoader:
                 for line in self.symbol_file.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ][:portfolio_universe_size]
+        elif source == "sp500_snapshot":
+            if self.universe_snapshot_dir is None:
+                raise FileNotFoundError("universe_snapshot_dir is not configured")
+            snapshot_path = self._pick_snapshot_file(self.universe_snapshot_dir, asof_date)
+            if snapshot_path is None:
+                raise FileNotFoundError(
+                    f"No SP500 snapshot found under {self.universe_snapshot_dir} for asof_date={asof_date}"
+                )
+            symbols = self._read_snapshot_symbols(snapshot_path)[:portfolio_universe_size]
         else:
             symbols = [fallback_symbol.upper()]
 
@@ -60,8 +71,78 @@ class LocalParquetDataLoader:
             symbols = [benchmark] + symbols
         return list(dict.fromkeys(symbols))
 
+    @staticmethod
+    def _parse_snapshot_date(path: Path) -> Optional[datetime]:
+        stem = path.stem  # sp500_membership_YYYY-MM-DD
+        prefix = "sp500_membership_"
+        if not stem.startswith(prefix):
+            return None
+        tail = stem[len(prefix) :]
+        try:
+            return datetime.strptime(tail, "%Y-%m-%d")
+        except ValueError:
+            return None
+
+    def _pick_snapshot_file(self, root: Path, asof_date: Optional[str]) -> Optional[Path]:
+        if not root.exists():
+            return None
+        asof = datetime.strptime(asof_date, "%Y-%m-%d") if asof_date else datetime.utcnow()
+        candidates: list[tuple[datetime, Path]] = []
+        for path in root.glob("sp500_membership_*.csv"):
+            dt = self._parse_snapshot_date(path)
+            if dt is None:
+                continue
+            if dt <= asof:
+                candidates.append((dt, path))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1]
+
+    @staticmethod
+    def _read_snapshot_symbols(path: Path) -> list[str]:
+        df = pd.read_csv(path)
+        if df.empty:
+            return []
+        if "symbol" in df.columns:
+            raw = df["symbol"].astype(str).tolist()
+        else:
+            raw = df.iloc[:, 0].astype(str).tolist()
+        symbols: list[str] = []
+        seen: set[str] = set()
+        for value in raw:
+            symbol = str(value).strip().upper().replace(".", "-")
+            if symbol and symbol not in seen:
+                symbols.append(symbol)
+                seen.add(symbol)
+        return symbols
+
     def load_close_matrix(
         self, symbols: Iterable[str], start_date: str, end_date: str
+    ) -> pd.DataFrame:
+        return self.load_field_matrix(
+            symbols=symbols,
+            start_date=start_date,
+            end_date=end_date,
+            field_candidates=["Adj Close", "Close"],
+        )
+
+    def load_volume_matrix(
+        self, symbols: Iterable[str], start_date: str, end_date: str
+    ) -> pd.DataFrame:
+        return self.load_field_matrix(
+            symbols=symbols,
+            start_date=start_date,
+            end_date=end_date,
+            field_candidates=["Volume"],
+        )
+
+    def load_field_matrix(
+        self,
+        symbols: Iterable[str],
+        start_date: str,
+        end_date: str,
+        field_candidates: list[str],
     ) -> pd.DataFrame:
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
@@ -79,8 +160,8 @@ class LocalParquetDataLoader:
             df = pd.read_parquet(path)
             if "Date" not in df.columns:
                 continue
-            col = "Adj Close" if "Adj Close" in df.columns else "Close"
-            if col not in df.columns:
+            col = next((c for c in field_candidates if c in df.columns), None)
+            if col is None:
                 continue
             s = (
                 df[["Date", col]]

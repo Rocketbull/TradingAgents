@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, Optional
 import pandas as pd
 
 from tradingagents.alpha import AlphaModel
+from tradingagents.dataflows.yfinance_classification import build_symbol_maps
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import (
     AttributionEngine,
@@ -37,6 +38,7 @@ class BacktestEngine:
             risk_aversion=float(self.config.get("risk_aversion", 3.0)),
             max_weight=float(self.config.get("max_weight", 0.05)),
             turnover_limit=float(self.config.get("turnover_limit", 0.20)),
+            sector_cap=float(self.config.get("sector_cap", 0.25)),
         )
         self.rebalancer = Rebalancer(
             transaction_cost_bps=float(self.config.get("transaction_cost_bps", 5.0))
@@ -53,6 +55,9 @@ class BacktestEngine:
         self.data_loader = LocalParquetDataLoader(
             data_root=Path(self.config.get("data_root", "data/market")),
             symbol_file=Path(self.config.get("symbol_file", "data/market/sp500_symbols.txt")),
+            universe_snapshot_dir=Path(
+                self.config.get("universe_snapshot_dir", "data/market/universe")
+            ),
         )
 
     def run(
@@ -72,6 +77,7 @@ class BacktestEngine:
             int(self.alpha_model.long_lookback) + 1,
             int(self.alpha_model.vol_lookback) + 2,
         ) * 2
+        volume_matrix: Optional[pd.DataFrame] = None
 
         if close_prices is None:
             symbols = self.data_loader.load_symbols(
@@ -80,12 +86,18 @@ class BacktestEngine:
                 portfolio_universe_size=int(self.config.get("portfolio_universe_size", 50)),
                 benchmark_symbol=str(self.config.get("benchmark_symbol", "SPY")),
                 fallback_symbol=fallback_symbol,
+                asof_date=start_date,
             )
             load_start = (start_dt - timedelta(days=warmup_days)).strftime("%Y-%m-%d")
             close_prices = self.data_loader.load_close_matrix(symbols, load_start, end_date)
+            try:
+                volume_matrix = self.data_loader.load_volume_matrix(symbols, load_start, end_date)
+            except Exception:
+                volume_matrix = None
         else:
             close_prices = close_prices.sort_index().copy()
             close_prices = close_prices.loc[close_prices.index <= pd.Timestamp(end_dt)]
+            volume_matrix = None
 
         benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
         benchmark_series = (
@@ -94,8 +106,23 @@ class BacktestEngine:
             else pd.Series(0.0, index=close_prices.index)
         )
         tradable_prices = close_prices.drop(columns=[benchmark_symbol], errors="ignore")
+        tradable_volumes = (
+            volume_matrix.drop(columns=[benchmark_symbol], errors="ignore")
+            if volume_matrix is not None
+            else None
+        )
         if tradable_prices.shape[1] < 2:
             raise ValueError("Need at least 2 tradable symbols after excluding benchmark.")
+        sector_map, beta_map = build_symbol_maps(
+            symbols=list(tradable_prices.columns),
+            path=Path(
+                self.config.get(
+                    "sector_classification_cache",
+                    "data/market/metadata/yfinance_classification.csv",
+                )
+            ),
+            fetch_missing=bool(self.config.get("fetch_missing_sector_data", False)),
+        )
 
         rebalance_dates = [
             d for d in self._rebalance_dates(tradable_prices.index)
@@ -113,17 +140,44 @@ class BacktestEngine:
         orders_rows: list[dict] = []
         weights_rows: list[dict] = []
         signal_ic_history: Dict[str, list[float]] = {}
+        prev_alpha_weights: Dict[str, float] = {}
         warmup_rows = max(
             int(self.risk_model.lookback_days) + 1,
             int(self.alpha_model.long_lookback) + 1,
             int(self.alpha_model.vol_lookback) + 2,
         )
+        min_sector_cov = float(self.config.get("min_sector_coverage", 0.70))
+        min_beta_cov = float(self.config.get("min_beta_coverage", 0.70))
+        coverage_denom = float(max(1, tradable_prices.shape[1]))
+        sector_cov = float(len(sector_map)) / coverage_denom
+        beta_cov = float(len(beta_map)) / coverage_denom
+        if (
+            bool(self.config.get("auto_refresh_sector_cache_on_low_coverage", True))
+            and (sector_cov < min_sector_cov or beta_cov < min_beta_cov)
+        ):
+            sector_map, beta_map = build_symbol_maps(
+                symbols=list(tradable_prices.columns),
+                path=Path(
+                    self.config.get(
+                        "sector_classification_cache",
+                        "data/market/metadata/yfinance_classification.csv",
+                    )
+                ),
+                fetch_missing=True,
+            )
 
         for i in range(len(rebalance_dates) - 1):
             rebalance_date = rebalance_dates[i]
             next_date = rebalance_dates[i + 1]
+            liquid_symbols = self._select_liquid_symbols(
+                close_history=tradable_prices.loc[:rebalance_date],
+                volume_history=(tradable_volumes.loc[:rebalance_date] if tradable_volumes is not None else None),
+                top_n=int(self.config.get("liquidity_top_n", 100)),
+                lookback_days=int(self.config.get("liquidity_lookback_days", 60)),
+                enabled=bool(self.config.get("dynamic_liquidity_filter", False)),
+            )
 
-            history = tradable_prices.loc[:rebalance_date]
+            history = tradable_prices.loc[:rebalance_date, liquid_symbols]
             if history.shape[0] < warmup_rows:
                 continue
             signals = list(
@@ -140,20 +194,29 @@ class BacktestEngine:
                 weighting_mode=str(self.config.get("ic_weighting_mode", "positive")),
                 corr_penalty=float(self.config.get("alpha_corr_penalty", 0.35)),
                 min_abs_weight=float(self.config.get("alpha_min_ic_weight", 0.0)),
+                prev_weights=prev_alpha_weights,
+                weight_smoothing=float(self.config.get("alpha_weight_smoothing", 0.25)),
+                max_signal_weight=float(self.config.get("alpha_max_signal_weight", 0.35)),
+                ic_ewm_decay=float(self.config.get("ic_ewm_decay", 0.85)),
             )
             covariance = self.risk_model.covariance(history)
 
             # Benchmark is not tradable in active portfolio construction.
             benchmark_weights = pd.Series(0.0, index=alpha_scores.index)
+            current_subset = {s: float(current_weights.get(s, 0.0)) for s in alpha_scores.index}
 
             target_weights, optimizer_details = self.optimizer.optimize(
                 alpha_scores=alpha_scores,
                 covariance=covariance,
-                current_weights=current_weights,
+                current_weights=current_subset,
                 benchmark_weights=benchmark_weights.to_dict(),
+                sector_map={s: sector_map.get(s, "") for s in alpha_scores.index},
                 return_details=True,
             )
-            raw_target_weights = optimizer_details.get("raw_target_weights", target_weights)
+            subset_target_weights = {s: float(target_weights.get(s, 0.0)) for s in alpha_scores.index}
+            target_weights = {s: subset_target_weights.get(s, 0.0) for s in tradable_prices.columns}
+            raw_target_subset = optimizer_details.get("raw_target_weights", subset_target_weights)
+            raw_target_weights = {s: float(raw_target_subset.get(s, 0.0)) for s in tradable_prices.columns}
             raw_turnover = sum(
                 abs(float(raw_target_weights.get(s, 0.0)) - float(current_weights.get(s, 0.0)))
                 for s in set(current_weights) | set(raw_target_weights)
@@ -230,6 +293,13 @@ class BacktestEngine:
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "alpha_weights": {k: float(v) for k, v in alpha_weights.items()},
+                    "liquid_universe_size": int(len(liquid_symbols)),
+                    "sector_map_coverage": float(
+                        sum(1 for s in alpha_scores.index if s in sector_map)
+                    ) / float(len(alpha_scores)),
+                    "beta_map_coverage": float(
+                        sum(1 for s in alpha_scores.index if s in beta_map)
+                    ) / float(len(alpha_scores)),
                     "signal_ic": signal_ic_now,
                     "portfolio_metrics": metrics,
                     "horizon_metrics": horizon_metrics,
@@ -242,6 +312,7 @@ class BacktestEngine:
             weights_rows.append({"trade_date": row["trade_date"], **{k: float(v) for k, v in effective_weights.items()}})
 
             current_weights = effective_weights
+            prev_alpha_weights = alpha_weights
             nav = nav_after_period
 
         if not equity_rows:
@@ -319,6 +390,30 @@ class BacktestEngine:
         iso = dates.isocalendar()
         grouped = pd.Series(dates, index=dates).groupby([iso.year, iso.week]).last()
         return list(pd.DatetimeIndex(grouped.values))
+
+    @staticmethod
+    def _select_liquid_symbols(
+        close_history: pd.DataFrame,
+        volume_history: Optional[pd.DataFrame],
+        top_n: int,
+        lookback_days: int,
+        enabled: bool,
+    ) -> list[str]:
+        symbols = list(close_history.columns)
+        if not enabled or volume_history is None:
+            return symbols
+        if close_history.empty or volume_history.empty:
+            return symbols
+        if top_n <= 0 or top_n >= len(symbols):
+            return symbols
+
+        aligned_close = close_history.reindex(columns=symbols).astype(float)
+        aligned_vol = volume_history.reindex(columns=symbols).astype(float)
+        dollar_vol = (aligned_close * aligned_vol).replace([pd.NA], 0.0).fillna(0.0)
+        med = dollar_vol.tail(max(1, int(lookback_days))).median(axis=0)
+        med = med.sort_values(ascending=False)
+        liquid = [s for s in med.index[:top_n] if pd.notna(med.loc[s])]
+        return liquid if len(liquid) >= 2 else symbols
 
     @staticmethod
     def _equal_weights(symbols: Iterable[str]) -> Dict[str, float]:

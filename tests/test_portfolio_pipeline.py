@@ -72,6 +72,33 @@ def test_optimizer_returns_details():
     assert set(details["target_weights"]) == set(target)
 
 
+def test_optimizer_enforces_sector_cap():
+    closes = _price_frame()
+    alpha = AlphaModel().score(closes)
+    cov = RiskModel().covariance(closes)
+    optimizer = PortfolioOptimizer(max_weight=0.8, turnover_limit=1.0, sector_cap=0.6)
+    current = {symbol: 0.25 for symbol in alpha.index}
+    sectors = {
+        "AAA": "Tech",
+        "BBB": "Tech",
+        "CCC": "Utilities",
+        "SPY": "Utilities",
+    }
+    target = optimizer.optimize(
+        alpha,
+        cov,
+        current_weights=current,
+        benchmark_weights={"SPY": 1.0},
+        sector_map=sectors,
+    )
+    sector_totals = {}
+    for symbol, weight in target.items():
+        sector = sectors[symbol]
+        sector_totals[sector] = sector_totals.get(sector, 0.0) + float(weight)
+    assert sector_totals["Tech"] <= 0.600001
+    assert sector_totals["Utilities"] <= 0.600001
+
+
 def test_ic_weighted_alpha_uses_history():
     closes = _price_frame()
     model = AlphaModel()
@@ -111,6 +138,31 @@ def test_ic_weighting_penalizes_highly_correlated_components():
     )
     assert weights["alpha_c"] > weights["alpha_a"]
     assert weights["alpha_c"] > weights["alpha_b"]
+
+
+def test_ic_weight_stabilization_caps_concentration():
+    model = AlphaModel()
+    components = pd.DataFrame(
+        {
+            "s1": [-2.0, -1.0, 0.0, 1.0, 2.0],
+            "s2": [-1.0, 0.0, 1.0, 0.0, -1.0],
+            "s3": [2.0, 1.0, 0.0, -1.0, -2.0],
+        },
+        index=["A", "B", "C", "D", "E"],
+    )
+    ic_history = {"s1": [0.9, 0.8], "s2": [0.01, 0.02], "s3": [0.01, 0.02]}
+    _, weights = model.ic_weighted_alpha(
+        components=components,
+        ic_history=ic_history,
+        ic_lookback=2,
+        weighting_mode="positive",
+        max_signal_weight=0.6,
+        prev_weights={"s1": 0.2, "s2": 0.4, "s3": 0.4},
+        weight_smoothing=0.5,
+        ic_ewm_decay=0.9,
+    )
+    assert max(abs(v) for v in weights.values()) <= 0.600001
+    assert abs(sum(abs(v) for v in weights.values()) - 1.0) <= 1e-6
 
 
 def test_alpha_model_from_config_builds_custom_registry():
@@ -157,3 +209,22 @@ def test_rebalancer_generates_orders():
     assert by_symbol["BBB"]["action"] == "BUY"
     assert by_symbol["AAA"]["estimated_cost"] > 0
     assert by_symbol["BBB"]["estimated_cost"] > 0
+
+
+def test_risk_model_sector_and_beta_helpers():
+    symbols = ["AAA", "BBB", "CCC"]
+    sector_map = {"AAA": "Technology", "CCC": "Utilities"}
+    beta_map = {"AAA": 1.2, "BBB": 0.8}
+
+    exposure = RiskModel.sector_exposure_matrix(symbols, sector_map, include_unknown=True)
+    assert set(exposure.index) == set(symbols)
+    assert "Technology" in exposure.columns
+    assert "Utilities" in exposure.columns
+    assert "Unknown" in exposure.columns
+    assert float(exposure.loc["AAA", "Technology"]) == 1.0
+    assert float(exposure.loc["BBB", "Unknown"]) == 1.0
+
+    betas = RiskModel.beta_vector(symbols, beta_map, default_beta=1.0)
+    assert float(betas.loc["AAA"]) == 1.2
+    assert float(betas.loc["BBB"]) == 0.8
+    assert float(betas.loc["CCC"]) == 1.0

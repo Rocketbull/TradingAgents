@@ -52,6 +52,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print symbols to stdout in addition to writing the file.",
     )
+    parser.add_argument(
+        "--snapshot-dir",
+        default="data/market/universe",
+        help="Directory to also save dated membership snapshots.",
+    )
+    parser.add_argument(
+        "--snapshot-date",
+        default=None,
+        help="Snapshot date YYYY-MM-DD; defaults to current UTC date.",
+    )
     return parser.parse_args()
 
 
@@ -59,6 +69,10 @@ def main() -> None:
     args = parse_args()
     symbols = fetch_sp500_symbols()
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if args.snapshot_date:
+        snapshot_date = datetime.strptime(args.snapshot_date, "%Y-%m-%d").strftime("%Y-%m-%d")
+    else:
+        snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     output = Path(args.out)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -79,6 +93,19 @@ def main() -> None:
         f"[ok] fetched {len(symbols)} symbols at {stamp} -> {output} "
         f"(metadata: {metadata_path})"
     )
+
+    snapshot_dir = Path(args.snapshot_dir)
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_path = snapshot_dir / f"sp500_membership_{snapshot_date}.csv"
+    snapshot_df = pd.DataFrame(
+        {
+            "symbol": symbols,
+            "source": SP500_WIKI_URL,
+            "downloaded_at_utc": stamp,
+        }
+    )
+    snapshot_df.to_csv(snapshot_path, index=False)
+    print(f"[ok] snapshot saved -> {snapshot_path}")
 
     if args.stdout:
         print(" ".join(symbols))

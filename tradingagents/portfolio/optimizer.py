@@ -18,6 +18,7 @@ class PortfolioOptimizer:
     risk_aversion: float = 3.0
     max_weight: float = 0.05
     turnover_limit: float = 0.20
+    sector_cap: Optional[float] = None
 
     def optimize(
         self,
@@ -25,6 +26,7 @@ class PortfolioOptimizer:
         covariance: pd.DataFrame,
         current_weights: Optional[Dict[str, float]] = None,
         benchmark_weights: Optional[Dict[str, float]] = None,
+        sector_map: Optional[Dict[str, str]] = None,
         return_details: bool = False,
     ) -> Dict[str, float] | tuple[Dict[str, float], Dict[str, Any]]:
         symbols = list(alpha_scores.index)
@@ -40,12 +42,12 @@ class PortfolioOptimizer:
         }
         try:
             target, raw_target = self._optimize_with_pypfopt(
-                alpha_scores, covariance, current, benchmark
+                alpha_scores, covariance, current, benchmark, sector_map
             )
         except Exception:
             details["backend"] = "fallback"
             details["used_fallback"] = True
-            target, raw_target = self._fallback_optimize(alpha_scores, current, benchmark)
+            target, raw_target = self._fallback_optimize(alpha_scores, current, benchmark, sector_map)
 
         details["raw_target_weights"] = raw_target
         details["target_weights"] = target
@@ -59,6 +61,7 @@ class PortfolioOptimizer:
         covariance: pd.DataFrame,
         current: pd.Series,
         benchmark: pd.Series,
+        sector_map: Optional[Dict[str, str]],
     ) -> tuple[Dict[str, float], Dict[str, float]]:
         from pypfopt import EfficientFrontier
 
@@ -72,8 +75,10 @@ class PortfolioOptimizer:
         )
         ef.max_quadratic_utility(risk_aversion=self.risk_aversion)
         weights = pd.Series(ef.clean_weights()).reindex(alpha_scores.index).fillna(0.0)
+        weights = self._apply_sector_cap(weights, sector_map)
         raw_target = weights.copy()
         adjusted = self._apply_turnover(weights, current)
+        adjusted = self._apply_sector_cap(adjusted, sector_map)
         return adjusted.to_dict(), raw_target.to_dict()
 
     def _fallback_optimize(
@@ -81,6 +86,7 @@ class PortfolioOptimizer:
         alpha_scores: pd.Series,
         current: pd.Series,
         benchmark: pd.Series,
+        sector_map: Optional[Dict[str, str]],
     ) -> tuple[Dict[str, float], Dict[str, float]]:
         active = alpha_scores.clip(lower=0.0)
         if active.sum() <= 0:
@@ -93,8 +99,10 @@ class PortfolioOptimizer:
             target = pd.Series(1.0 / len(target), index=target.index)
         else:
             target = target / target.sum()
+        target = self._apply_sector_cap(target, sector_map)
         raw_target = target.copy()
         adjusted = self._apply_turnover(target, current)
+        adjusted = self._apply_sector_cap(adjusted, sector_map)
         return adjusted.to_dict(), raw_target.to_dict()
 
     def _apply_turnover(self, target: pd.Series, current: pd.Series) -> pd.Series:
@@ -109,6 +117,57 @@ class PortfolioOptimizer:
         if adjusted.sum() <= 0:
             return target
         return adjusted / adjusted.sum()
+
+    def _apply_sector_cap(
+        self,
+        weights: pd.Series,
+        sector_map: Optional[Dict[str, str]],
+    ) -> pd.Series:
+        if not sector_map or self.sector_cap is None:
+            return self._normalize_clip(weights)
+        cap = float(self.sector_cap)
+        if cap <= 0:
+            return self._normalize_clip(weights)
+
+        w = self._normalize_clip(weights)
+        sector_key = {
+            s: (sector_map.get(s) if isinstance(sector_map.get(s), str) and sector_map.get(s) else f"Unknown::{s}")
+            for s in w.index
+        }
+
+        for _ in range(8):
+            sector_totals = w.groupby(pd.Series(sector_key)).sum()
+            over = sector_totals[sector_totals > cap + 1e-12]
+            if over.empty:
+                return self._normalize_clip(w)
+
+            for sector_name, total in over.items():
+                if total <= 0:
+                    continue
+                scale = cap / float(total)
+                members = [s for s in w.index if sector_key[s] == sector_name]
+                w.loc[members] = w.loc[members] * scale
+
+            deficit = 1.0 - float(w.sum())
+            if deficit <= 1e-12:
+                continue
+
+            headroom = pd.Series(self.max_weight, index=w.index) - w
+            eligible = headroom[headroom > 1e-12].index
+            if len(eligible) == 0:
+                break
+            alloc = headroom.loc[eligible] / float(headroom.loc[eligible].sum())
+            w.loc[eligible] = w.loc[eligible] + alloc * deficit
+            w = self._normalize_clip(w)
+
+        return self._normalize_clip(w)
+
+    def _normalize_clip(self, weights: pd.Series) -> pd.Series:
+        w = weights.astype(float).clip(lower=0.0, upper=self.max_weight)
+        total = float(w.sum())
+        if total <= 0:
+            return pd.Series(1.0 / len(w), index=w.index)
+        return w / total
 
     @staticmethod
     def _align_weights(symbols: list[str], raw: Optional[Dict[str, float]]) -> pd.Series:

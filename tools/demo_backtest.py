@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--universe-source",
         default="sp500_file",
-        choices=["single_symbol", "config_list", "sp500_file"],
+        choices=["single_symbol", "config_list", "sp500_file", "sp500_snapshot"],
         help="Universe source strategy.",
     )
     parser.add_argument(
@@ -36,6 +36,11 @@ def parse_args() -> argparse.Namespace:
         "--symbol-file",
         default="data/market/sp500_symbols.txt",
         help="Path to symbol list file.",
+    )
+    parser.add_argument(
+        "--snapshot-dir",
+        default="data/market/universe",
+        help="Path to dated SP500 snapshot files (sp500_membership_YYYY-MM-DD.csv).",
     )
     parser.add_argument(
         "--benchmark-symbol",
@@ -71,6 +76,23 @@ def parse_args() -> argparse.Namespace:
         default="eval_results/backtest/demo_backtest",
         help="Directory to store backtest artifacts.",
     )
+    parser.add_argument(
+        "--dynamic-liquidity-filter",
+        action="store_true",
+        help="Enable dynamic liquidity filter by rolling median dollar volume.",
+    )
+    parser.add_argument(
+        "--liquidity-top-n",
+        type=int,
+        default=100,
+        help="Top N liquid symbols to keep each rebalance when filter is enabled.",
+    )
+    parser.add_argument(
+        "--liquidity-lookback-days",
+        type=int,
+        default=60,
+        help="Lookback days for median dollar volume liquidity ranking.",
+    )
     return parser.parse_args()
 
 
@@ -88,11 +110,15 @@ def main() -> None:
             "universe_source": args.universe_source,
             "portfolio_universe_size": args.universe_size,
             "symbol_file": args.symbol_file,
+            "universe_snapshot_dir": args.snapshot_dir,
             "benchmark_symbol": args.benchmark_symbol.upper(),
             "max_weight": args.max_weight,
             "turnover_limit": args.turnover_limit,
             "risk_aversion": args.risk_aversion,
             "transaction_cost_bps": args.transaction_cost_bps,
+            "dynamic_liquidity_filter": args.dynamic_liquidity_filter,
+            "liquidity_top_n": args.liquidity_top_n,
+            "liquidity_lookback_days": args.liquidity_lookback_days,
         }
     )
 
@@ -113,4 +139,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

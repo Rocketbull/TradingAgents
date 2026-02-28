@@ -1,7 +1,7 @@
 # TradingAgents Active Portfolio Management Plan (Grinold/Kahn-aligned)
 
 ## Summary
-This document defines a planning-only roadmap to extend TradingAgents from a single-ticker categorical signal system (`BUY`/`SELL`/`HOLD`) into a multi-asset active portfolio management system aligned with Grinold/Kahn principles.
+This document defines and tracks the roadmap to extend TradingAgents from a single-ticker categorical signal system (`BUY`/`SELL`/`HOLD`) into a multi-asset active portfolio management system aligned with Grinold/Kahn principles.
 
 The plan includes:
 1. Current-state architecture review.
@@ -9,7 +9,40 @@ The plan includes:
 3. A phased, decision-complete implementation roadmap.
 4. Acceptance criteria, risks, mitigations, and rollout gates.
 
-No functional code changes are proposed in this document.
+This plan is now used as a living status artifact and includes implemented vs pending scope.
+
+## Status Snapshot (as of 2026-02-28)
+Completed:
+- Multi-asset backtest pipeline with rebalance simulation:
+  - `tradingagents/backtest/engine.py`
+  - `tradingagents/backtest/accounting.py`
+  - `tradingagents/backtest/data_loader.py`
+  - `tools/demo_backtest.py`
+- Portfolio construction core:
+  - `tradingagents/portfolio/risk_model.py`
+  - `tradingagents/portfolio/optimizer.py`
+  - `tradingagents/portfolio/rebalance.py`
+  - `tradingagents/portfolio/attribution.py`
+- Alpha module split and extensible registry/profiles:
+  - `tradingagents/alpha/model.py`
+  - `tradingagents/alpha/signals.py`
+  - `tradingagents/alpha/profiles.py`
+  - `docs/alpha-signal-registry-guide.md`
+- Grinold diagnostics and horizon metrics in backtest output:
+  - IC / breadth proxy / TC proxy / implied IR / realized active IR
+  - horizon IC/spread/hit metrics
+- Tests and demo artifacts:
+  - `tests/test_portfolio_pipeline.py`
+  - `tests/test_backtest_engine.py`
+
+Partially completed:
+- Optimizer backend/fallback policy exists, but deterministic relaxation order is still basic.
+- Risk model exists (shrunk covariance), but no factor exposure model yet.
+
+Not completed:
+- Historical universe snapshots (anti-survivorship policy).
+- Sector constraints and active risk budgets in optimizer.
+- Walk-forward and stress grid orchestration.
 
 ## 1) Title + Scope
 - Title: TradingAgents Active Portfolio Management Plan (Grinold/Kahn-aligned)
@@ -122,7 +155,7 @@ Introduce a portfolio construction pipeline after analyst/research signals:
 
 ## 5) Phased Implementation Plan
 
-## Phase 0: Data + Universe foundation
+## Phase 0: Data + Universe foundation (Partially complete)
 Objectives:
 - Define universe and benchmark configuration.
 - Define rebalance calendar and historical data coverage requirements.
@@ -133,8 +166,9 @@ Deliverables:
 
 Gate:
 - Able to load a stable universe for at least one historical test period.
+- Remaining gap: universe is currently sourced from present-day symbol files; add date-stamped membership snapshots.
 
-## Phase 1: Multi-asset state extension
+## Phase 1: Multi-asset state extension (Partially complete)
 Objectives:
 - Extend graph state from single-asset outputs to portfolio-level artifacts.
 
@@ -147,8 +181,9 @@ Add state keys:
 
 Gate:
 - End-to-end run returns portfolio state object for a test universe.
+- Remaining gap: state typing in `tradingagents/agents/utils/agent_states.py` is not fully portfolio-first.
 
-## Phase 2: Optimizer integration
+## Phase 2: Optimizer integration (Complete for baseline)
 Objectives:
 - Add pluggable optimizer interface with first implementation on PyPortfolioOpt.
 
@@ -160,7 +195,7 @@ Deliverables:
 Gate:
 - Produces valid weights for test universe under defined constraints.
 
-## Phase 3: Rebalance and execution simulation
+## Phase 3: Rebalance and execution simulation (Complete for baseline)
 Objectives:
 - Convert target weights to executable order plan and simulate costs.
 
@@ -172,7 +207,7 @@ Deliverables:
 Gate:
 - Multi-period backtest emits holdings, trades, and PnL trace.
 
-## Phase 4: Grinold diagnostics
+## Phase 4: Grinold diagnostics (Complete for baseline)
 Objectives:
 - Implement quality metrics for active management process.
 
@@ -185,7 +220,7 @@ Deliverables:
 Gate:
 - Diagnostics computed and stored per rebalance cycle.
 
-## Phase 5: Hardening
+## Phase 5: Hardening (In progress)
 Objectives:
 - Improve reliability, test coverage, and failure-mode handling.
 
@@ -279,16 +314,16 @@ Mitigation:
 - Apply score normalization, clipping, and turnover regularization; monitor IC decay.
 
 ## 9) Execution Readiness Checklist
-- [ ] Confirm first implementation stack:
+- [x] Confirm first implementation stack:
   - Default: `PyPortfolioOpt` + `alphalens-reloaded`.
-- [ ] Confirm first milestone scope:
+- [x] Confirm first milestone scope:
   - Weekly rebalance,
   - long-only,
   - top-50 universe,
   - benchmark `SPY`.
 - [ ] Confirm deterministic data snapshot policy for universe and prices.
-- [ ] Confirm fallback policy for optimizer infeasibility.
-- [ ] Confirm reporting schema for diagnostics and rebalance logs.
+- [ ] Confirm fallback policy for optimizer infeasibility (baseline exists; relaxation policy to formalize).
+- [x] Confirm reporting schema for diagnostics and rebalance logs.
 
 ## 10) Active Portfolio Management Enhancements (New)
 
@@ -337,6 +372,52 @@ This section extends the plan with concepts directly aligned with Grinold/Kahn a
   - optionally emit pre-constraint and post-constraint targets.
 - `notebooks/demo_backtest_viewer.ipynb`
   - add visualizations for new diagnostic columns.
+
+## 11) Next Execution Steps (Amended)
+Priority 1 (data correctness):
+- Add universe snapshot support:
+  - New input format: `data/market/universe/sp500_membership_YYYY-MM-DD.csv`
+  - Backtest should resolve the latest snapshot available on each rebalance date.
+  - Acceptance: no forward-looking membership in historical windows.
+
+Priority 2 (optimizer realism):
+- Add sector and benchmark-relative constraints:
+  - In optimizer: sector cap enforcement and active weight cap vs benchmark.
+  - Extend config with explicit `active_weight_cap` and optional `tracking_error_target`.
+  - Acceptance: tests that assert sector caps and active caps under rebalance.
+
+Priority 3 (risk model depth):
+- Add optional factor risk model path:
+  - Estimate simple market/beta and sector exposures.
+  - Expose factor covariance + specific risk estimates.
+  - Acceptance: optimizer can run in `risk_model_type = covariance|factor`.
+
+Priority 4 (hardening and research loop):
+- Add walk-forward runner + stress matrix:
+  - Vary transaction costs, turnover limits, universe size, and rebalance frequency.
+  - Persist comparable run manifests and aggregate report.
+  - Acceptance: reproducible multi-run summary table and notebook charts.
+
+Priority 5 (portfolio state integration):
+- Complete portfolio-first state schema in `agent_states.py` and graph pipeline.
+- Acceptance: portfolio graph run emits typed `alpha_scores`, `target_weights`, and `rebalance_orders`.
+
+## 12) Deferred TODOs (Framework Stage)
+These are intentionally deferred while the project prioritizes framework completeness over alpha quality.
+
+- TODO 1: IC threshold gate (signal pruning)
+  - Rule: set a signal weight to zero when rolling IC is below a configurable minimum.
+  - Purpose: prevent persistently weak signals from polluting composite alpha.
+  - Status: deferred.
+
+- TODO 2: IC significance gate (robustness filter)
+  - Rule: require minimum statistical strength (for example IC t-stat and/or hit-rate threshold) before allowing non-zero signal weight.
+  - Purpose: avoid overreacting to noise in short IC histories.
+  - Status: deferred.
+
+- Rationale for deferral:
+  - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.
+  - High-quality stable IC is not yet expected; hard gating now may hide integration issues.
 
 ## Assumptions and Defaults Chosen
 - Save location: `docs/active-portfolio-plan.md`.
