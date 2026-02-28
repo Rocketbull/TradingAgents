@@ -151,11 +151,20 @@ activemq-data/
 .env
 .envrc
 .venv
+.conda/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Local data folder cache – keep folder by tracking the placeholder
+data/*
+!data/.gitkeep
+
+# Local data folder cache – keep folder by tracking the placeholder
+data/*
+!data/.gitkeep
 
 # Spyder project settings
 .spyderproject
@@ -215,5 +224,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Chainlit local app/config
+.chainlit/
+
 # Cache
 **/data_cache/
+data/market/
+research/output/
