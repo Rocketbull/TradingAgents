@@ -178,6 +178,11 @@ class BacktestEngine:
             )
 
             history = tradable_prices.loc[:rebalance_date, liquid_symbols]
+            volume_history = (
+                tradable_volumes.loc[:rebalance_date, liquid_symbols]
+                if tradable_volumes is not None
+                else None
+            )
             if history.shape[0] < warmup_rows:
                 continue
             signals = list(
@@ -186,7 +191,11 @@ class BacktestEngine:
                     ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"],
                 )
             )
-            components = self.alpha_model.component_scores(history, signals=signals)
+            components = self.alpha_model.component_scores(
+                history,
+                volumes=volume_history,
+                signals=signals,
+            )
             alpha_scores, alpha_weights = self.alpha_model.ic_weighted_alpha(
                 components,
                 ic_history=signal_ic_history,

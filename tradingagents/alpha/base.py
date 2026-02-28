@@ -16,5 +16,9 @@ class AlphaSignal(ABC):
         """Return minimum price history rows required for this signal."""
 
     @abstractmethod
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(
+        self,
+        closes: pd.DataFrame,
+        volumes: pd.DataFrame | None = None,
+    ) -> pd.Series:
         """Compute raw cross-sectional signal score indexed by symbol."""

@@ -17,7 +17,7 @@ class MomentumAlpha(AlphaSignal):
     def lookback(self) -> int:
         return int(self.window) + 1
 
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
         return closes.pct_change(self.window).iloc[-1]
 
 
@@ -30,7 +30,7 @@ class ReversalAlpha(AlphaSignal):
     def lookback(self) -> int:
         return int(self.window) + 1
 
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
         return -closes.pct_change(self.window).iloc[-1]
 
 
@@ -43,7 +43,7 @@ class LowVolAlpha(AlphaSignal):
     def lookback(self) -> int:
         return int(self.window) + 2
 
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
         returns = closes.pct_change().dropna(how="all")
         if returns.empty:
             return pd.Series(0.0, index=closes.columns)
@@ -59,7 +59,7 @@ class DownsideVolAlpha(AlphaSignal):
     def lookback(self) -> int:
         return int(self.window) + 2
 
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
         returns = closes.pct_change().dropna(how="all")
         if returns.empty:
             return pd.Series(0.0, index=closes.columns)
@@ -77,7 +77,7 @@ class TrendAlpha(AlphaSignal):
     def lookback(self) -> int:
         return int(max(self.long_window, self.short_window)) + 1
 
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
         long_mom = closes.pct_change(self.long_window).iloc[-1]
         short_mom = closes.pct_change(self.short_window).iloc[-1]
         return long_mom - short_mom
@@ -92,12 +92,70 @@ class BreakoutAlpha(AlphaSignal):
     def lookback(self) -> int:
         return int(self.window)
 
-    def compute(self, closes: pd.DataFrame) -> pd.Series:
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
         if closes.shape[0] < self.window:
             return pd.Series(0.0, index=closes.columns)
         trailing_high = closes.tail(self.window).max(axis=0)
         latest = closes.iloc[-1]
         return latest / trailing_high - 1.0
+
+
+@dataclass(frozen=True)
+class FlatVolumeBreakoutAlpha(AlphaSignal):
+    name: str
+    flat_window: int = 60
+    flat_max_abs_return: float = 0.15
+    price_window: int = 20
+    price_ratio_min: float = 1.10
+    vol_short_window: int = 5
+    vol_long_window: int = 20
+    vol_ratio_min: float = 1.50
+
+    @property
+    def lookback(self) -> int:
+        return int(self.flat_window + self.price_window + self.vol_long_window + 1)
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.empty or volumes is None or volumes.empty:
+            return pd.Series(0.0, index=closes.columns)
+
+        common_cols = [c for c in closes.columns if c in volumes.columns]
+        if not common_cols:
+            return pd.Series(0.0, index=closes.columns)
+
+        c = closes[common_cols]
+        v = volumes[common_cols]
+        if (
+            c.shape[0] < self.lookback
+            or v.shape[0] < self.vol_long_window
+            or c.shape[0] < self.price_window + self.flat_window + 1
+        ):
+            return pd.Series(0.0, index=closes.columns)
+
+        prior_end = c.shift(self.price_window)
+        prior_start = c.shift(self.price_window + self.flat_window)
+        flat_ret = (prior_end / prior_start) - 1.0
+
+        price_ratio = c / c.shift(self.price_window)
+        vol_short = v.rolling(int(self.vol_short_window), min_periods=int(self.vol_short_window)).mean()
+        vol_long = v.rolling(int(self.vol_long_window), min_periods=int(self.vol_long_window)).mean()
+        vol_ratio = vol_short / vol_long.replace(0.0, np.nan)
+        flat_abs = flat_ret.abs().iloc[-1].replace([np.inf, -np.inf], np.nan)
+        price_last = price_ratio.iloc[-1].replace([np.inf, -np.inf], np.nan)
+        vol_last = vol_ratio.iloc[-1].replace([np.inf, -np.inf], np.nan)
+
+        flat_cap = float(self.flat_max_abs_return)
+        if flat_cap > 0:
+            # 1.0 means very flat, 0.0 means outside allowed flat regime.
+            flat_strength = ((flat_cap - flat_abs) / flat_cap).clip(lower=0.0, upper=1.0)
+        else:
+            flat_strength = (flat_abs <= 0.0).astype(float)
+
+        # Positive excess above thresholds; both need to be positive for non-zero score.
+        price_excess = (price_last / float(self.price_ratio_min) - 1.0).clip(lower=0.0)
+        vol_excess = (vol_last / float(self.vol_ratio_min) - 1.0).clip(lower=0.0)
+        score = flat_strength * price_excess * vol_excess
+        return score.reindex(closes.columns).fillna(0.0)
 
 
 def cross_sectional_zscore(values: pd.Series) -> pd.Series:

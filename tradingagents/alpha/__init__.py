@@ -6,6 +6,7 @@ from .profiles import apply_alpha_profile, get_alpha_profile, list_alpha_profile
 from .signals import (
     BreakoutAlpha,
     DownsideVolAlpha,
+    FlatVolumeBreakoutAlpha,
     LowVolAlpha,
     MomentumAlpha,
     ReversalAlpha,
@@ -21,6 +22,7 @@ __all__ = [
     "DownsideVolAlpha",
     "TrendAlpha",
     "BreakoutAlpha",
+    "FlatVolumeBreakoutAlpha",
     "apply_alpha_profile",
     "get_alpha_profile",
     "list_alpha_profiles",

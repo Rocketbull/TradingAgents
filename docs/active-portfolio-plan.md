@@ -34,6 +34,12 @@ Completed:
 - Tests and demo artifacts:
   - `tests/test_portfolio_pipeline.py`
   - `tests/test_backtest_engine.py`
+- Repeatable alpha research framework and diagnostics workflow:
+  - `research/common/grinold.py`
+  - `research/common/run_manager.py`
+  - `research/alpha_flat_volume_breakout.py`
+  - `notebooks/research_run_viewer.ipynb`
+  - `docs/alpha-flat-volume-breakout-research-workflow.md`
 
 Partially completed:
 - Optimizer backend/fallback policy exists, but deterministic relaxation order is still basic.
@@ -397,6 +403,14 @@ Priority 4 (hardening and research loop):
   - Vary transaction costs, turnover limits, universe size, and rebalance frequency.
   - Persist comparable run manifests and aggregate report.
   - Acceptance: reproducible multi-run summary table and notebook charts.
+- Status update:
+  - Baseline reproducibility pieces are now implemented for research runs:
+    - deterministic run tags from parameters,
+    - `params.json` and `manifest.json` per run,
+    - generic reusable notebook viewer for run artifacts.
+  - Remaining work:
+    - add batch walk-forward/stress orchestrator,
+    - produce consolidated multi-run comparison table.
 
 Priority 5 (portfolio state integration):
 - Complete portfolio-first state schema in `agent_states.py` and graph pipeline.
@@ -414,6 +428,16 @@ These are intentionally deferred while the project prioritizes framework complet
   - Rule: require minimum statistical strength (for example IC t-stat and/or hit-rate threshold) before allowing non-zero signal weight.
   - Purpose: avoid overreacting to noise in short IC histories.
   - Status: deferred.
+
+- TODO 3: Standardize research scripts on shared framework
+  - Rule: migrate `research/hypothesis_analysis.py` and `research/threshold_sweep.py` to use shared run manager + manifest pattern.
+  - Purpose: make research outputs consistently reproducible and easier to compare in one viewer.
+  - Status: pending.
+
+- TODO 4: Cross-run experiment registry and comparison report
+  - Rule: add an index file (or parquet/csv table) that records all runs with key metrics for filtering and ranking.
+  - Purpose: support repeatable parameter sweeps and apples-to-apples comparisons across experiments.
+  - Status: pending.
 
 - Rationale for deferral:
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.

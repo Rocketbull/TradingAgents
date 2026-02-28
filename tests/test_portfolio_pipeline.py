@@ -5,6 +5,7 @@ import math
 import pandas as pd
 
 from tradingagents.alpha import AlphaModel
+from tradingagents.alpha.signals import FlatVolumeBreakoutAlpha
 from tradingagents.alpha.profiles import (
     apply_alpha_profile,
     get_alpha_profile,
@@ -25,6 +26,63 @@ def _price_frame() -> pd.DataFrame:
             "SPY": pd.Series(range(250, 550), index=idx, dtype=float),
         }
     )
+
+
+def _volume_frame() -> pd.DataFrame:
+    idx = pd.date_range("2025-01-01", periods=300, freq="D")
+    n = len(idx)
+    return pd.DataFrame(
+        {
+            "AAA": pd.Series([1_000_000.0] * n, index=idx, dtype=float),
+            "BBB": pd.Series([800_000.0] * n, index=idx, dtype=float),
+            "CCC": pd.Series([600_000.0] * n, index=idx, dtype=float),
+            "SPY": pd.Series([2_000_000.0] * n, index=idx, dtype=float),
+        }
+    )
+
+
+def _breakout_close_volume_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    idx = pd.date_range("2025-01-01", periods=120, freq="D")
+    aaa = [100.0] * 90 + list(pd.Series(range(100, 130), dtype=float))
+    bbb = [100.0] * 120
+    ccc = [100.0] * 120
+    closes = pd.DataFrame(
+        {
+            "AAA": pd.Series(aaa, index=idx, dtype=float),
+            "BBB": pd.Series(bbb, index=idx, dtype=float),
+            "CCC": pd.Series(ccc, index=idx, dtype=float),
+        }
+    )
+    vol_aaa = [1_000_000.0] * 115 + [2_500_000.0] * 5
+    volumes = pd.DataFrame(
+        {
+            "AAA": pd.Series(vol_aaa, index=idx, dtype=float),
+            "BBB": pd.Series([800_000.0] * 120, index=idx, dtype=float),
+            "CCC": pd.Series([700_000.0] * 120, index=idx, dtype=float),
+        }
+    )
+    return closes, volumes
+
+
+def _breakout_strength_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
+    idx = pd.date_range("2025-01-01", periods=120, freq="D")
+    strong = [100.0] * 90 + list(pd.Series(range(100, 130), dtype=float))
+    weak = [100.0] * 95 + list(pd.Series(range(100, 125), dtype=float))
+    closes = pd.DataFrame(
+        {
+            "STRONG": pd.Series(strong, index=idx, dtype=float),
+            "WEAK": pd.Series(weak, index=idx, dtype=float),
+        }
+    )
+    vol_strong = [1_000_000.0] * 115 + [3_000_000.0] * 5
+    vol_weak = [1_000_000.0] * 115 + [1_900_000.0] * 5
+    volumes = pd.DataFrame(
+        {
+            "STRONG": pd.Series(vol_strong, index=idx, dtype=float),
+            "WEAK": pd.Series(vol_weak, index=idx, dtype=float),
+        }
+    )
+    return closes, volumes
 
 
 def test_alpha_and_risk_model_shapes():
@@ -179,6 +237,72 @@ def test_alpha_model_from_config_builds_custom_registry():
     assert model.available_signals() == ["mom_2m", "rev_1w", "lv_2m"]
     components = model.component_scores(closes)
     assert set(components.columns) == {"mom_2m", "rev_1w", "lv_2m"}
+
+
+def test_alpha_model_registry_builds_flat_volume_breakout():
+    closes, volumes = _breakout_close_volume_frames()
+    config = {
+        "alpha_signal_registry": [
+            {
+                "type": "flat_vol_breakout",
+                "name": "flat_vol",
+                "flat_window": 60,
+                "flat_max_abs_return": 0.15,
+                "price_window": 20,
+                "price_ratio_min": 1.10,
+                "vol_short_window": 5,
+                "vol_long_window": 20,
+                "vol_ratio_min": 1.50,
+            }
+        ]
+    }
+    model = AlphaModel.from_config(config)
+    assert model.available_signals() == ["flat_vol"]
+    components = model.component_scores(closes, volumes=volumes)
+    assert set(components.columns) == {"flat_vol"}
+
+
+def test_flat_volume_breakout_signal_triggers_for_synthetic_pattern():
+    closes, volumes = _breakout_close_volume_frames()
+    model = AlphaModel.from_config(
+        {
+            "alpha_signal_registry": [
+                {
+                    "type": "flat_vol_breakout",
+                    "name": "flat_vol",
+                    "flat_window": 60,
+                    "flat_max_abs_return": 0.15,
+                    "price_window": 20,
+                    "price_ratio_min": 1.10,
+                    "vol_short_window": 5,
+                    "vol_long_window": 20,
+                    "vol_ratio_min": 1.50,
+                }
+            ]
+        }
+    )
+    comps = model.component_scores(closes, volumes=volumes)
+    # AAA has flat regime + price breakout + volume surge, others do not.
+    assert float(comps.loc["AAA", "flat_vol"]) > 0.0
+    assert float(comps.loc["BBB", "flat_vol"]) <= 0.0
+    assert float(comps.loc["CCC", "flat_vol"]) <= 0.0
+
+
+def test_flat_volume_breakout_scores_strength_continuously():
+    closes, volumes = _breakout_strength_frames()
+    signal = FlatVolumeBreakoutAlpha(
+        name="flat_vol",
+        flat_window=60,
+        flat_max_abs_return=0.15,
+        price_window=20,
+        price_ratio_min=1.10,
+        vol_short_window=5,
+        vol_long_window=20,
+        vol_ratio_min=1.50,
+    )
+    raw = signal.compute(closes, volumes=volumes)
+    assert float(raw.loc["STRONG"]) > float(raw.loc["WEAK"])
+    assert float(raw.loc["WEAK"]) > 0.0
 
 
 def test_alpha_profiles_apply_and_list():

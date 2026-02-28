@@ -9,6 +9,7 @@ from .base import AlphaSignal
 from .signals import (
     BreakoutAlpha,
     DownsideVolAlpha,
+    FlatVolumeBreakoutAlpha,
     LowVolAlpha,
     MomentumAlpha,
     ReversalAlpha,
@@ -87,6 +88,16 @@ class AlphaModel:
                 name=str(d.get("name", "breakout")),
                 window=int(d.get("window", 252)),
             ),
+            "flat_vol_breakout": lambda d: FlatVolumeBreakoutAlpha(
+                name=str(d.get("name", "flat_vol_breakout")),
+                flat_window=int(d.get("flat_window", 60)),
+                flat_max_abs_return=float(d.get("flat_max_abs_return", 0.15)),
+                price_window=int(d.get("price_window", 20)),
+                price_ratio_min=float(d.get("price_ratio_min", 1.10)),
+                vol_short_window=int(d.get("vol_short_window", 5)),
+                vol_long_window=int(d.get("vol_long_window", 20)),
+                vol_ratio_min=float(d.get("vol_ratio_min", 1.50)),
+            ),
         }
 
     @classmethod
@@ -130,6 +141,7 @@ class AlphaModel:
     def component_scores(
         self,
         closes: pd.DataFrame,
+        volumes: pd.DataFrame | None = None,
         signals: Iterable[str] | None = None,
     ) -> pd.DataFrame:
         if closes.empty:
@@ -142,16 +154,17 @@ class AlphaModel:
 
         components: dict[str, pd.Series] = {}
         for name in selected:
-            raw = self._signals[name].compute(closes).reindex(closes.columns)
+            raw = self._signals[name].compute(closes, volumes=volumes).reindex(closes.columns)
             components[name] = cross_sectional_zscore(raw)
         return pd.DataFrame(components).fillna(0.0)
 
     def score(
         self,
         closes: pd.DataFrame,
+        volumes: pd.DataFrame | None = None,
         signals: Iterable[str] | None = None,
     ) -> pd.Series:
-        components = self.component_scores(closes, signals=signals)
+        components = self.component_scores(closes, volumes=volumes, signals=signals)
         if components.empty:
             return pd.Series(0.0, index=closes.columns)
         weights = pd.Series(1.0 / components.shape[1], index=components.columns)

@@ -1,0 +1,23 @@
+{
+  "start_date": "2024-01-01",
+  "end_date": "2025-12-31",
+  "universe_source": "sp500_file",
+  "universe_size": 500,
+  "symbol_file": "data/market/sp500_symbols.txt",
+  "snapshot_dir": "data/market/universe",
+  "data_root": "data/market",
+  "benchmark_symbol": "SPY",
+  "fallback_symbol": "SPY",
+  "flat_lookback_days": 60,
+  "flat_max_abs_return": 0.15,
+  "price_lookback_days": 20,
+  "price_ratio_min": 1.1,
+  "vol_short_days": 5,
+  "vol_long_days": 20,
+  "vol_ratio_min": 1.5,
+  "forward_days": "5,20",
+  "weighting_mode": "long_short",
+  "top_k": 25,
+  "out_dir": "research/output",
+  "save_by_date": true
+}
