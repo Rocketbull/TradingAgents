@@ -17,6 +17,8 @@ class PortfolioOptimizer:
 
     risk_aversion: float = 3.0
     max_weight: float = 0.05
+    active_weight_cap: Optional[float] = None
+    tracking_error_target: Optional[float] = None
     turnover_limit: float = 0.20
     sector_cap: Optional[float] = None
 
@@ -64,21 +66,32 @@ class PortfolioOptimizer:
         sector_map: Optional[Dict[str, str]],
     ) -> tuple[Dict[str, float], Dict[str, float]]:
         from pypfopt import EfficientFrontier
+        import cvxpy as cp
 
-        mu = (benchmark + alpha_scores).to_dict()
+        benchmark = self._normalize_nonnegative(benchmark)
+        mu = alpha_scores.to_dict()
         cov = covariance.loc[alpha_scores.index, alpha_scores.index]
+        bounds = self._weight_bounds(benchmark)
 
         ef = EfficientFrontier(
             expected_returns=pd.Series(mu),
             cov_matrix=cov,
-            weight_bounds=(0.0, self.max_weight),
+            weight_bounds=bounds,
         )
+        if self.tracking_error_target is not None and float(self.tracking_error_target) > 0:
+            te_ann = float(self.tracking_error_target)
+            te_var_daily = (te_ann * te_ann) / 252.0
+            b_vec = benchmark.reindex(alpha_scores.index).astype(float).values
+            cov_arr = cov.values
+            ef.add_constraint(lambda w: cp.quad_form(w - b_vec, cov_arr) <= te_var_daily)
         ef.max_quadratic_utility(risk_aversion=self.risk_aversion)
         weights = pd.Series(ef.clean_weights()).reindex(alpha_scores.index).fillna(0.0)
         weights = self._apply_sector_cap(weights, sector_map)
+        weights = self._enforce_active_cap(weights, benchmark)
         raw_target = weights.copy()
         adjusted = self._apply_turnover(weights, current)
         adjusted = self._apply_sector_cap(adjusted, sector_map)
+        adjusted = self._enforce_active_cap(adjusted, benchmark)
         return adjusted.to_dict(), raw_target.to_dict()
 
     def _fallback_optimize(
@@ -88,21 +101,25 @@ class PortfolioOptimizer:
         benchmark: pd.Series,
         sector_map: Optional[Dict[str, str]],
     ) -> tuple[Dict[str, float], Dict[str, float]]:
-        active = alpha_scores.clip(lower=0.0)
-        if active.sum() <= 0:
-            active = pd.Series(1.0, index=alpha_scores.index)
-        active = active / active.sum()
-
-        target = 0.5 * benchmark + 0.5 * active
+        benchmark = self._normalize_nonnegative(benchmark)
+        active = alpha_scores.astype(float) - float(alpha_scores.mean())
+        if float(active.abs().sum()) <= 0:
+            active = pd.Series(0.0, index=alpha_scores.index)
+        if self.active_weight_cap is not None and float(self.active_weight_cap) > 0:
+            scale = float(self.active_weight_cap) / max(float(active.abs().max()), 1e-12)
+            active = active * min(1.0, scale)
+        target = benchmark + active
         target = target.clip(lower=0.0, upper=self.max_weight)
         if target.sum() <= 0:
             target = pd.Series(1.0 / len(target), index=target.index)
         else:
             target = target / target.sum()
         target = self._apply_sector_cap(target, sector_map)
+        target = self._enforce_active_cap(target, benchmark)
         raw_target = target.copy()
         adjusted = self._apply_turnover(target, current)
         adjusted = self._apply_sector_cap(adjusted, sector_map)
+        adjusted = self._enforce_active_cap(adjusted, benchmark)
         return adjusted.to_dict(), raw_target.to_dict()
 
     def _apply_turnover(self, target: pd.Series, current: pd.Series) -> pd.Series:
@@ -164,6 +181,54 @@ class PortfolioOptimizer:
 
     def _normalize_clip(self, weights: pd.Series) -> pd.Series:
         w = weights.astype(float).clip(lower=0.0, upper=self.max_weight)
+        total = float(w.sum())
+        if total <= 0:
+            return pd.Series(1.0 / len(w), index=w.index)
+        return w / total
+
+    def _enforce_active_cap(self, weights: pd.Series, benchmark: pd.Series) -> pd.Series:
+        if self.active_weight_cap is None or float(self.active_weight_cap) <= 0:
+            return self._normalize_clip(weights)
+        cap = float(self.active_weight_cap)
+        b = self._normalize_nonnegative(benchmark.reindex(weights.index).fillna(0.0))
+        lower = (b - cap).clip(lower=0.0, upper=self.max_weight)
+        upper = (b + cap).clip(upper=self.max_weight)
+        w = weights.reindex(b.index).fillna(0.0).astype(float)
+
+        for _ in range(12):
+            w = w.clip(lower=lower, upper=upper)
+            total = float(w.sum())
+            deficit = 1.0 - total
+            if abs(deficit) <= 1e-10:
+                break
+            if deficit > 0:
+                room = (upper - w).clip(lower=0.0)
+                room_sum = float(room.sum())
+                if room_sum <= 1e-12:
+                    break
+                w = w + room * (deficit / room_sum)
+            else:
+                removable = (w - lower).clip(lower=0.0)
+                removable_sum = float(removable.sum())
+                if removable_sum <= 1e-12:
+                    break
+                w = w - removable * ((-deficit) / removable_sum)
+        return w.clip(lower=0.0, upper=self.max_weight)
+
+    def _weight_bounds(self, benchmark: pd.Series) -> list[tuple[float, float]]:
+        b = self._normalize_nonnegative(benchmark)
+        if self.active_weight_cap is None or float(self.active_weight_cap) <= 0:
+            lower = pd.Series(0.0, index=b.index)
+            upper = pd.Series(self.max_weight, index=b.index)
+        else:
+            cap = float(self.active_weight_cap)
+            lower = (b - cap).clip(lower=0.0, upper=self.max_weight)
+            upper = (b + cap).clip(upper=self.max_weight)
+        return [(float(lower.loc[s]), float(max(lower.loc[s], upper.loc[s]))) for s in b.index]
+
+    @staticmethod
+    def _normalize_nonnegative(weights: pd.Series) -> pd.Series:
+        w = weights.astype(float).clip(lower=0.0)
         total = float(w.sum())
         if total <= 0:
             return pd.Series(1.0 / len(w), index=w.index)

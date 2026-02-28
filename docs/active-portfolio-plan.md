@@ -40,6 +40,10 @@ Completed:
   - `research/alpha_flat_volume_breakout.py`
   - `notebooks/research_run_viewer.ipynb`
   - `docs/alpha-flat-volume-breakout-research-workflow.md`
+- Benchmark-relative construction baseline and TC plumbing improvements:
+  - Benchmark proxy weights integrated into backtest rebalance loop.
+  - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.
+  - Attribution accepts pre/post-constraint active weights for TC estimation.
 
 Partially completed:
 - Optimizer backend/fallback policy exists, but deterministic relaxation order is still basic.
@@ -49,6 +53,36 @@ Not completed:
 - Historical universe snapshots (anti-survivorship policy).
 - Sector constraints and active risk budgets in optimizer.
 - Walk-forward and stress grid orchestration.
+
+## Practical Readiness Gap Assessment (as of 2026-02-28)
+This section captures where the current implementation is still below practical active-management standards.
+
+1. Benchmark-relative active optimization is incomplete.
+- Current backtest now uses proxy benchmark weights and supports active caps/optional TE targets, but benchmark still uses a proxy (not official index weights) and TE policy needs calibration.
+- Impact: weights are not governed as true active bets versus benchmark.
+- Practicality risk: high.
+
+2. Transfer coefficient (TC) is currently a weak proxy.
+- Current attribution now supports TC from unconstrained vs constrained active weights; legacy score-vs-weight proxy remains available as fallback.
+- Remaining gap vs Grinold: strengthen logging/usage so corrected TC is always primary in reports and dashboards.
+- Practicality risk: high.
+
+3. IC weighting is framework-appropriate but not robust enough yet.
+- Strengths: rolling IC, EWMA, correlation penalty, cap, smoothing.
+- Gaps: no significance gate / threshold gate, no confidence-aware shrinkage.
+- Practicality risk: medium-high.
+
+4. Risk model remains covariance-only.
+- Current model uses shrunk sample covariance without a full factor-risk path.
+- Practicality risk: medium-high.
+
+5. Universe point-in-time handling is still partial.
+- Snapshot support exists, but universe is not fully re-resolved per rebalance date.
+- Practicality risk: medium.
+
+Initial quality ratings (for planning only):
+- IC weighting: 5/10 (good baseline, not production quality).
+- TC estimation: 5/10 (improved plumbing, still proxy-heavy and needs stricter governance).
 
 ## 1) Title + Scope
 - Title: TradingAgents Active Portfolio Management Plan (Grinold/Kahn-aligned)
@@ -391,6 +425,13 @@ Priority 2 (optimizer realism):
   - In optimizer: sector cap enforcement and active weight cap vs benchmark.
   - Extend config with explicit `active_weight_cap` and optional `tracking_error_target`.
   - Acceptance: tests that assert sector caps and active caps under rebalance.
+- Add explicit benchmark-relative objective wiring:
+  - Optimize expected *active* return under active-risk controls.
+  - Ensure benchmark weights are injected as true benchmark, not placeholders.
+  - Acceptance: active weights sum to zero (where applicable) and TE controls bind in stress tests.
+- Status update:
+  - Baseline implementation added (`active_weight_cap`, optional `tracking_error_target`, benchmark proxy weights).
+  - Remaining work: integrate official benchmark constituent weights and validate TE target calibration policy.
 
 Priority 3 (risk model depth):
 - Add optional factor risk model path:
@@ -403,6 +444,9 @@ Priority 4 (hardening and research loop):
   - Vary transaction costs, turnover limits, universe size, and rebalance frequency.
   - Persist comparable run manifests and aggregate report.
   - Acceptance: reproducible multi-run summary table and notebook charts.
+- Execution protocol:
+  - Every material model/optimizer/attribution enhancement must include a matched A/B backtest (pre-change vs post-change) with fixed config and dataset.
+  - Store both run artifacts and a delta summary in the experiment log.
 - Status update:
   - Baseline reproducibility pieces are now implemented for research runs:
     - deterministic run tags from parameters,
@@ -415,6 +459,15 @@ Priority 4 (hardening and research loop):
 Priority 5 (portfolio state integration):
 - Complete portfolio-first state schema in `agent_states.py` and graph pipeline.
 - Acceptance: portfolio graph run emits typed `alpha_scores`, `target_weights`, and `rebalance_orders`.
+
+Priority 6 (attribution correctness):
+- Replace TC proxy with pre/post-constraint active-weight TC:
+  - Persist unconstrained active weights and constrained active weights per rebalance.
+  - Compute TC from their correlation and compare with current proxy.
+  - Acceptance: attribution report includes both legacy proxy and corrected TC during transition.
+- Status update:
+  - Backtest now passes unconstrained/constrained active weights into attribution diagnostics.
+  - Remaining work: expose corrected TC explicitly in notebook dashboards as primary metric.
 
 ## 12) Deferred TODOs (Framework Stage)
 These are intentionally deferred while the project prioritizes framework completeness over alpha quality.
@@ -438,6 +491,18 @@ These are intentionally deferred while the project prioritizes framework complet
   - Rule: add an index file (or parquet/csv table) that records all runs with key metrics for filtering and ranking.
   - Purpose: support repeatable parameter sweeps and apples-to-apples comparisons across experiments.
   - Status: pending.
+
+- TODO 5: Long-short expansion path (beta-neutral and 130/30)
+  - Rule: extend current benchmark-relative architecture to support:
+    - beta-neutral portfolios (beta target near 0),
+    - 130/30 long-short construction (gross/net exposure constraints).
+  - Required upgrades:
+    - optimizer bounds/objective for negative weights and leverage/gross-net constraints,
+    - direct beta/factor exposure constraints in optimization,
+    - accounting and rebalance support for shorts (borrow/margin/carry),
+    - long-short specific diagnostics (gross/net exposure, beta drift, borrow drag).
+  - Purpose: keep architecture ready for advanced mandate types while preserving current benchmark-relative implementation as baseline.
+  - Status: future.
 
 - Rationale for deferral:
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.

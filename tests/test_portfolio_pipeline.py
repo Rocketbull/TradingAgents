@@ -14,6 +14,7 @@ from tradingagents.alpha.profiles import (
 from tradingagents.portfolio.optimizer import PortfolioOptimizer
 from tradingagents.portfolio.rebalance import Rebalancer
 from tradingagents.portfolio.risk_model import RiskModel
+from tradingagents.portfolio.attribution import AttributionEngine
 
 
 def _price_frame() -> pd.DataFrame:
@@ -155,6 +156,26 @@ def test_optimizer_enforces_sector_cap():
         sector_totals[sector] = sector_totals.get(sector, 0.0) + float(weight)
     assert sector_totals["Tech"] <= 0.600001
     assert sector_totals["Utilities"] <= 0.600001
+
+
+def test_optimizer_enforces_active_weight_cap():
+    closes = _price_frame()
+    alpha = AlphaModel().score(closes)
+    cov = RiskModel().covariance(closes)
+    benchmark = {symbol: 0.25 for symbol in alpha.index}
+    optimizer = PortfolioOptimizer(
+        max_weight=0.60,
+        active_weight_cap=0.05,
+        turnover_limit=1.0,
+    )
+    target = optimizer.optimize(
+        alpha_scores=alpha,
+        covariance=cov,
+        current_weights=benchmark,
+        benchmark_weights=benchmark,
+    )
+    for symbol in alpha.index:
+        assert abs(float(target[symbol]) - float(benchmark[symbol])) <= 0.050001
 
 
 def test_ic_weighted_alpha_uses_history():
@@ -319,6 +340,23 @@ def test_alpha_profiles_apply_and_list():
     assert merged["foo"] == "bar"
     assert "alpha_signal_registry" in merged
     assert "alpha_signals" in merged
+
+
+def test_attribution_transfer_coefficient_uses_pre_post_active_weights():
+    alpha = pd.Series({"AAA": 1.0, "BBB": 0.5, "CCC": -0.2, "DDD": -1.0})
+    realized = pd.Series({"AAA": 0.02, "BBB": 0.01, "CCC": -0.01, "DDD": -0.02})
+    unconstrained_active = {"AAA": 0.10, "BBB": 0.03, "CCC": -0.03, "DDD": -0.10}
+    constrained_active = {"AAA": 0.06, "BBB": 0.02, "CCC": -0.02, "DDD": -0.06}
+    target_weights = {"AAA": 0.31, "BBB": 0.27, "CCC": 0.23, "DDD": 0.19}
+
+    metrics = AttributionEngine().diagnostics(
+        alpha_scores=alpha,
+        realized_returns=realized,
+        target_weights=target_weights,
+        unconstrained_active_weights=unconstrained_active,
+        constrained_active_weights=constrained_active,
+    )
+    assert metrics["transfer_coefficient_proxy"] > 0.99
 
 
 def test_rebalancer_generates_orders():

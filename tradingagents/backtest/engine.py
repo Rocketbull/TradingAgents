@@ -37,6 +37,16 @@ class BacktestEngine:
         self.optimizer = PortfolioOptimizer(
             risk_aversion=float(self.config.get("risk_aversion", 3.0)),
             max_weight=float(self.config.get("max_weight", 0.05)),
+            active_weight_cap=(
+                float(self.config["active_weight_cap"])
+                if self.config.get("active_weight_cap") is not None
+                else None
+            ),
+            tracking_error_target=(
+                float(self.config["tracking_error_target"])
+                if self.config.get("tracking_error_target") is not None
+                else None
+            ),
             turnover_limit=float(self.config.get("turnover_limit", 0.20)),
             sector_cap=float(self.config.get("sector_cap", 0.25)),
         )
@@ -210,8 +220,12 @@ class BacktestEngine:
             )
             covariance = self.risk_model.covariance(history)
 
-            # Benchmark is not tradable in active portfolio construction.
-            benchmark_weights = pd.Series(0.0, index=alpha_scores.index)
+            benchmark_weights = self._benchmark_proxy_weights(
+                close_history=tradable_prices.loc[:rebalance_date],
+                volume_history=(tradable_volumes.loc[:rebalance_date] if tradable_volumes is not None else None),
+                mode=str(self.config.get("benchmark_weight_mode", "liquidity_proxy")),
+                lookback_days=int(self.config.get("benchmark_weight_lookback_days", 60)),
+            ).reindex(alpha_scores.index).fillna(0.0)
             current_subset = {s: float(current_weights.get(s, 0.0)) for s in alpha_scores.index}
 
             target_weights, optimizer_details = self.optimizer.optimize(
@@ -226,6 +240,11 @@ class BacktestEngine:
             target_weights = {s: subset_target_weights.get(s, 0.0) for s in tradable_prices.columns}
             raw_target_subset = optimizer_details.get("raw_target_weights", subset_target_weights)
             raw_target_weights = {s: float(raw_target_subset.get(s, 0.0)) for s in tradable_prices.columns}
+            benchmark_subset = benchmark_weights.to_dict()
+            benchmark_all_weights = {
+                s: float(benchmark_subset.get(s, 0.0))
+                for s in tradable_prices.columns
+            }
             raw_turnover = sum(
                 abs(float(raw_target_weights.get(s, 0.0)) - float(current_weights.get(s, 0.0)))
                 for s in set(current_weights) | set(raw_target_weights)
@@ -265,6 +284,14 @@ class BacktestEngine:
                 alpha_scores=alpha_scores,
                 realized_returns=realized_series,
                 target_weights=effective_weights,
+                unconstrained_active_weights={
+                    s: float(raw_target_weights.get(s, 0.0)) - float(benchmark_all_weights.get(s, 0.0))
+                    for s in tradable_prices.columns
+                },
+                constrained_active_weights={
+                    s: float(effective_weights.get(s, 0.0)) - float(benchmark_all_weights.get(s, 0.0))
+                    for s in tradable_prices.columns
+                },
             )
             horizon_metrics = self._horizon_metrics(
                 close_prices=tradable_prices,
@@ -301,6 +328,7 @@ class BacktestEngine:
                     "orders_count": len(orders),
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
+                    "benchmark_weights": benchmark_all_weights,
                     "alpha_weights": {k: float(v) for k, v in alpha_weights.items()},
                     "liquid_universe_size": int(len(liquid_symbols)),
                     "sector_map_coverage": float(
@@ -423,6 +451,26 @@ class BacktestEngine:
         med = med.sort_values(ascending=False)
         liquid = [s for s in med.index[:top_n] if pd.notna(med.loc[s])]
         return liquid if len(liquid) >= 2 else symbols
+
+    @staticmethod
+    def _benchmark_proxy_weights(
+        close_history: pd.DataFrame,
+        volume_history: Optional[pd.DataFrame],
+        mode: str,
+        lookback_days: int,
+    ) -> pd.Series:
+        symbols = list(close_history.columns)
+        if len(symbols) == 0:
+            return pd.Series(dtype=float)
+        if mode.lower() == "liquidity_proxy" and volume_history is not None and not volume_history.empty:
+            aligned_close = close_history.reindex(columns=symbols).astype(float)
+            aligned_vol = volume_history.reindex(columns=symbols).astype(float)
+            dollar_vol = (aligned_close * aligned_vol).replace([pd.NA], 0.0).fillna(0.0)
+            proxy = dollar_vol.tail(max(1, int(lookback_days))).median(axis=0).clip(lower=0.0)
+            if float(proxy.sum()) > 0:
+                return proxy / float(proxy.sum())
+        # Fallback: equal-weight proxy benchmark over tradable universe.
+        return pd.Series(1.0 / len(symbols), index=symbols, dtype=float)
 
     @staticmethod
     def _equal_weights(symbols: Iterable[str]) -> Dict[str, float]:

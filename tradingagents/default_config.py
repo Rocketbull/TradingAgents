@@ -29,8 +29,12 @@ DEFAULT_CONFIG = {
     "dynamic_liquidity_filter": False,
     "liquidity_top_n": 100,
     "liquidity_lookback_days": 60,
+    "benchmark_weight_mode": "liquidity_proxy",  # equal, liquidity_proxy
+    "benchmark_weight_lookback_days": 60,
     "rebalance_frequency": "weekly",      # daily, weekly, monthly
     "max_weight": 0.05,
+    "active_weight_cap": None,           # Optional absolute cap on |w - benchmark_w|
+    "tracking_error_target": None,       # Optional annualized ex-ante TE target
     "sector_cap": 0.25,
     "turnover_limit": 0.20,
     "risk_aversion": 3.0,

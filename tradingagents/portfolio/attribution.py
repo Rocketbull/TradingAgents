@@ -17,10 +17,18 @@ class AttributionEngine:
         realized_returns: Optional[pd.Series],
         target_weights: Dict[str, float],
         pre_constraint_scores: Optional[pd.Series] = None,
+        unconstrained_active_weights: Optional[Dict[str, float]] = None,
+        constrained_active_weights: Optional[Dict[str, float]] = None,
     ) -> Dict[str, float]:
         ic = self._ic(alpha_scores, realized_returns)
         breadth = self._breadth_proxy(target_weights)
-        tc = self._transfer_coefficient(alpha_scores, pre_constraint_scores, target_weights)
+        tc = self._transfer_coefficient(
+            alpha_scores=alpha_scores,
+            pre_constraint_scores=pre_constraint_scores,
+            target_weights=target_weights,
+            unconstrained_active_weights=unconstrained_active_weights,
+            constrained_active_weights=constrained_active_weights,
+        )
         realized_ir = self._information_ratio(realized_returns, target_weights)
         return {
             "information_coefficient": ic,
@@ -91,7 +99,17 @@ class AttributionEngine:
         alpha_scores: pd.Series,
         pre_constraint_scores: Optional[pd.Series],
         target_weights: Dict[str, float],
+        unconstrained_active_weights: Optional[Dict[str, float]] = None,
+        constrained_active_weights: Optional[Dict[str, float]] = None,
     ) -> float:
+        if unconstrained_active_weights is not None and constrained_active_weights is not None:
+            unconstrained = pd.Series(unconstrained_active_weights, dtype=float)
+            constrained = pd.Series(constrained_active_weights, dtype=float)
+            aligned = pd.concat([unconstrained, constrained], axis=1).dropna()
+            if aligned.shape[0] < 3:
+                return float("nan")
+            return float(aligned.iloc[:, 0].corr(aligned.iloc[:, 1]))
+
         constrained = pd.Series(target_weights).reindex(alpha_scores.index).fillna(0.0)
         source = pre_constraint_scores if pre_constraint_scores is not None else alpha_scores
         aligned = pd.concat([source, constrained], axis=1).dropna()
