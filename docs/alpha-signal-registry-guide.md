@@ -18,6 +18,9 @@ If it is empty, the built-in default signal set is used.
 - `downside_vol`: params `name`, `window`
 - `trend`: params `name`, `long_window`, `short_window`
 - `breakout`: params `name`, `window`
+- `vol_adj_momentum`: params `name`, `momentum_window`, `vol_window`
+- `range_position`: params `name`, `window`
+- `volume_shock`: params `name`, `price_window`, `vol_short_window`, `vol_long_window`
 - `btc_gld_corr`: params
   - `name`, `lookback_window` (default `120`)
   - `risk_symbol` (default `BTC-USD`)
@@ -66,6 +69,7 @@ You can start from built-in presets:
 - `momentum_heavy`
 - `mean_reversion_heavy`
 - `risk_on_crypto_anchor`
+- `diversified_sp500_v1`
 
 Example:
 
@@ -93,8 +97,34 @@ from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.alpha import apply_alpha_profile
 
 config = DEFAULT_CONFIG.copy()
-config = apply_alpha_profile(config, "risk_on_crypto_anchor")
+config = apply_alpha_profile(config, "diversified_sp500_v1")
 ```
+
+## Research Script (SP500)
+Use the profile research runner to evaluate per-factor and composite diagnostics on SP500 universe snapshots:
+
+```bash
+.conda/tradingagents/bin/python research/alpha_profile_sp500.py \
+  --config-json research/configs/alpha_profile_sp500_diversified_v1.json
+```
+
+## Alphalens Adapter
+For standard factor tear-sheet diagnostics (IC, quantiles, turnover/autocorr), use:
+
+```bash
+.conda/tradingagents/bin/python research/alpha_alphalens_adapter.py \
+  --config-json research/configs/alpha_alphalens_mom3m_sample.json
+```
+
+Then render tearsheet figures:
+
+```bash
+.conda/tradingagents/bin/python research/alpha_alphalens_tearsheet.py \
+  --factor-data research/output/<run_tag>/factor_data.parquet \
+  --out-dir research/output/<run_tag>/tearsheet_png
+```
+
+See also: `docs/alphalens-research-workflow.md`.
 
 ## Extending With a New Alpha Type
 1. Add a new `AlphaSignal` subclass in `tradingagents/alpha/signals.py`.

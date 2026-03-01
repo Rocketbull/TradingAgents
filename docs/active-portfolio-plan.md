@@ -38,8 +38,11 @@ Completed:
   - `research/common/grinold.py`
   - `research/common/run_manager.py`
   - `research/alpha_flat_volume_breakout.py`
+  - `research/alpha_alphalens_adapter.py`
+  - `research/alpha_alphalens_tearsheet.py`
   - `notebooks/research_run_viewer.ipynb`
   - `docs/alpha-flat-volume-breakout-research-workflow.md`
+  - `docs/alphalens-research-workflow.md`
 - Benchmark-relative construction baseline and TC plumbing improvements:
   - Benchmark proxy weights integrated into backtest rebalance loop.
   - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.
@@ -553,6 +556,67 @@ These are intentionally deferred while the project prioritizes framework complet
 - Rationale for deferral:
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.
   - High-quality stable IC is not yet expected; hard gating now may hide integration issues.
+
+## 13) Review of `docs/suggestions.md` + Plan Refinement (2026-03-01)
+
+This section reviews the external suggestions in `docs/suggestions.md` and maps them to actionable updates for this repository.
+
+### Strong ideas worth keeping
+- Process-first framing from the Fundamental Law (`IR = IC * sqrt(BR) * TC`) is directionally correct and aligns with current diagnostics.
+- Explicit unconstrained-vs-constrained optimizer comparison for TC is a strong audit control and should remain mandatory.
+- Explicit signal lifecycle management (standardization, volatility-aware scaling, decay/half-life) is a practical bridge from raw scores to tradable alpha.
+- Scheduled skill-vs-luck checks (`IR * sqrt(Time)`) are useful as governance metrics.
+
+### Suggestions that need adaptation for TradingAgents
+- Benchmark choice should stay configurable (`SPY`, `QQQ`, or mandate-specific benchmark) rather than fixed in plan text.
+- "Residual volatility scaling" depends on factor-model depth; until factor risk path is complete, keep this as optional mode with clear fallback.
+- "Do not change strategy until T-stat < 1 for over a year" is too rigid for framework-stage work; continue controlled A/B upgrades with fixed data and explicit deltas.
+
+### Refined execution priorities (added)
+Priority A (alpha translation hardening):
+- Enforce cross-sectional z-score normalization as explicit pre-optimizer step in all default profiles.
+- Add optional alpha volatility-scaling mode:
+  - `none` (default for backward compatibility),
+  - `total_vol`,
+  - `residual_vol` (enabled only when factor path is present).
+- Add per-signal half-life decay controls in profile config and alpha aggregation.
+- Acceptance:
+  - unit tests for z-score normalization behavior, scaling modes, and half-life decay monotonicity.
+
+Priority B (IC governance + horizon audit):
+- Standardize IC metrics at 1/2/4 rebalance horizons in both per-date logs and run summaries.
+- Add quarterly governance metrics:
+  - trailing realized active IR,
+  - `IR * sqrt(Time)` t-stat proxy,
+  - fallback frequency (dates with zero passed signals after gates).
+- Treat suggested IC band (`0.02-0.07`) as a monitoring target, not a hard gate.
+- Acceptance:
+  - metrics output includes these fields and notebook viewer renders them.
+
+Priority C (breadth and signal diversification):
+- Require at least 3 distinct default alpha families in the baseline profile pack (for example momentum, risk/volatility, and breakout/volume).
+- Add correlation diagnostics across active signals and report effective breadth proxy in research summaries.
+- Acceptance:
+  - research artifacts include signal correlation table and breadth proxy trend.
+
+Priority D (constraint tax + cost realism):
+- Make corrected TC (pre/post-constraint active-weight correlation) the primary reported TC metric; keep legacy proxy only for transition/debug.
+- Extend transaction-cost model from fixed bps to optional two-part model:
+  - fixed bps,
+  - turnover impact multiplier.
+- Continue TE target calibration with benchmark weights from official constituent history when available.
+- Acceptance:
+  - attribution outputs corrected TC as default and reports cost decomposition.
+
+Priority E (validation protocol tightening):
+- Add walk-forward + stress matrix orchestrator over:
+  - transaction cost levels,
+  - turnover limits,
+  - universe size,
+  - rebalance frequency.
+- Preserve current required matched A/B protocol for material model/optimizer/attribution changes.
+- Acceptance:
+  - consolidated multi-run comparison table with reproducible manifests.
 
 ## Assumptions and Defaults Chosen
 - Save location: `docs/active-portfolio-plan.md`.

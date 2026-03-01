@@ -13,8 +13,11 @@ from .signals import (
     FlatVolumeBreakoutAlpha,
     LowVolAlpha,
     MomentumAlpha,
+    RangePositionAlpha,
     ReversalAlpha,
     TrendAlpha,
+    VolAdjMomentumAlpha,
+    VolumeShockAlpha,
     cross_sectional_zscore,
 )
 
@@ -57,6 +60,9 @@ class AlphaModel:
             DownsideVolAlpha(name="downside_vol", window=60),
             TrendAlpha(name="trend_12m_1m", long_window=252, short_window=21),
             BreakoutAlpha(name="breakout_52w", window=252),
+            VolAdjMomentumAlpha(name="vol_adj_mom_3m", momentum_window=63, vol_window=21),
+            RangePositionAlpha(name="range_pos_3m", window=63),
+            VolumeShockAlpha(name="volume_shock_1w", price_window=5, vol_short_window=5, vol_long_window=20),
         ]
 
     @classmethod
@@ -88,6 +94,21 @@ class AlphaModel:
             "breakout": lambda d: BreakoutAlpha(
                 name=str(d.get("name", "breakout")),
                 window=int(d.get("window", 252)),
+            ),
+            "vol_adj_momentum": lambda d: VolAdjMomentumAlpha(
+                name=str(d.get("name", "vol_adj_momentum")),
+                momentum_window=int(d.get("momentum_window", 63)),
+                vol_window=int(d.get("vol_window", 21)),
+            ),
+            "range_position": lambda d: RangePositionAlpha(
+                name=str(d.get("name", "range_position")),
+                window=int(d.get("window", 63)),
+            ),
+            "volume_shock": lambda d: VolumeShockAlpha(
+                name=str(d.get("name", "volume_shock")),
+                price_window=int(d.get("price_window", 5)),
+                vol_short_window=int(d.get("vol_short_window", 5)),
+                vol_long_window=int(d.get("vol_long_window", 20)),
             ),
             "flat_vol_breakout": lambda d: FlatVolumeBreakoutAlpha(
                 name=str(d.get("name", "flat_vol_breakout")),

@@ -1,0 +1,19 @@
+{
+  "start_date": "2024-01-01",
+  "end_date": "2025-12-31",
+  "alpha_profile": "diversified_sp500_v2_tilt",
+  "factor_name": "mom_3m",
+  "periods": "5,20",
+  "quantiles": 5,
+  "max_loss": 0.35,
+  "date_step": 1,
+  "universe_source": "sp500_snapshot",
+  "universe_size": 120,
+  "symbol_file": "data/universe/sp500/current/sp500_symbols.txt",
+  "snapshot_dir": "data/universe/sp500/snapshots",
+  "data_root": "data/market",
+  "benchmark_symbol": "SPY",
+  "fallback_symbol": "SPY",
+  "out_dir": "research/output",
+  "save_factor_data": true
+}

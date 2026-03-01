@@ -2,7 +2,7 @@ typing-extensions
 langchain-core
 langchain-openai
 langchain-experimental
-pandas
+pandas<3
 yfinance
 stockstats
 langgraph

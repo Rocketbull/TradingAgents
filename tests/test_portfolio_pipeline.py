@@ -106,6 +106,31 @@ def _btc_gld_corr_frame() -> pd.DataFrame:
     )
 
 
+def _volume_shock_frame() -> tuple[pd.DataFrame, pd.DataFrame]:
+    idx = pd.date_range("2025-01-01", periods=90, freq="D")
+    aaa_close = [100.0] * 70 + list(pd.Series(range(100, 120), dtype=float))
+    bbb_close = [100.0] * 90
+    ccc_close = [100.0] * 80 + list(pd.Series(range(100, 110), dtype=float))
+    closes = pd.DataFrame(
+        {
+            "AAA": pd.Series(aaa_close, index=idx, dtype=float),
+            "BBB": pd.Series(bbb_close, index=idx, dtype=float),
+            "CCC": pd.Series(ccc_close, index=idx, dtype=float),
+        }
+    )
+    aaa_vol = [1_000_000.0] * 85 + [2_500_000.0] * 5
+    bbb_vol = [1_000_000.0] * 90
+    ccc_vol = [1_000_000.0] * 85 + [1_200_000.0] * 5
+    volumes = pd.DataFrame(
+        {
+            "AAA": pd.Series(aaa_vol, index=idx, dtype=float),
+            "BBB": pd.Series(bbb_vol, index=idx, dtype=float),
+            "CCC": pd.Series(ccc_vol, index=idx, dtype=float),
+        }
+    )
+    return closes, volumes
+
+
 def test_alpha_and_risk_model_shapes():
     closes = _price_frame()
     model = AlphaModel()
@@ -417,9 +442,34 @@ def test_alpha_model_registry_builds_btc_gld_corr_signal():
     assert float(comps["btc_gld_corr"].abs().sum()) > 0.0
 
 
+def test_alpha_model_registry_builds_new_signal_types():
+    closes, volumes = _volume_shock_frame()
+    model = AlphaModel.from_config(
+        {
+            "alpha_signal_registry": [
+                {"type": "vol_adj_momentum", "name": "vam", "momentum_window": 21, "vol_window": 10},
+                {"type": "range_position", "name": "range_1m", "window": 21},
+                {
+                    "type": "volume_shock",
+                    "name": "vol_shock",
+                    "price_window": 5,
+                    "vol_short_window": 5,
+                    "vol_long_window": 20,
+                },
+            ]
+        }
+    )
+    comps = model.component_scores(closes, volumes=volumes)
+    assert set(comps.columns) == {"vam", "range_1m", "vol_shock"}
+    assert float(comps["vam"].abs().sum()) > 0.0
+    assert float(comps["range_1m"].abs().sum()) > 0.0
+    assert float(comps["vol_shock"].abs().sum()) > 0.0
+
+
 def test_alpha_profiles_apply_and_list():
     names = list_alpha_profiles()
     assert "conservative" in names
+    assert "diversified_sp500_v1" in names
 
     profile = get_alpha_profile("momentum_heavy")
     assert "alpha_signal_registry" in profile

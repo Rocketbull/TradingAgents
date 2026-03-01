@@ -61,6 +61,41 @@ ALPHA_PROFILES: Dict[str, Dict[str, Any]] = {
         "alpha_signals": ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol", "btc_gld_corr"],
         "alpha_corr_penalty": 0.35,
     },
+    "diversified_sp500_v1": {
+        "alpha_signal_registry": [
+            {"type": "momentum", "name": "mom_3m", "window": 63},
+            {"type": "reversal", "name": "rev_1m", "window": 21},
+            {"type": "low_vol", "name": "low_vol", "window": 60},
+            {"type": "vol_adj_momentum", "name": "vol_adj_mom_3m", "momentum_window": 63, "vol_window": 21},
+            {"type": "range_position", "name": "range_pos_3m", "window": 63},
+            {
+                "type": "volume_shock",
+                "name": "volume_shock_1w",
+                "price_window": 5,
+                "vol_short_window": 5,
+                "vol_long_window": 20,
+            },
+        ],
+        "alpha_signals": ["mom_3m", "rev_1m", "low_vol", "vol_adj_mom_3m", "range_pos_3m", "volume_shock_1w"],
+        "alpha_corr_penalty": 0.40,
+    },
+    "diversified_sp500_v2_tilt": {
+        "alpha_signal_registry": [
+            {"type": "momentum", "name": "mom_3m", "window": 63},
+            {"type": "momentum", "name": "mom_6m", "window": 126},
+            {"type": "reversal", "name": "rev_1m", "window": 21},
+            {"type": "vol_adj_momentum", "name": "vol_adj_mom_3m", "momentum_window": 63, "vol_window": 21},
+            {
+                "type": "volume_shock",
+                "name": "volume_shock_1w",
+                "price_window": 5,
+                "vol_short_window": 5,
+                "vol_long_window": 20,
+            },
+        ],
+        "alpha_signals": ["mom_3m", "mom_6m", "rev_1m", "vol_adj_mom_3m", "volume_shock_1w"],
+        "alpha_corr_penalty": 0.35,
+    },
 }
 
 

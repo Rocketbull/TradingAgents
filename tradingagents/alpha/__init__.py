@@ -9,8 +9,11 @@ from .signals import (
     FlatVolumeBreakoutAlpha,
     LowVolAlpha,
     MomentumAlpha,
+    RangePositionAlpha,
     ReversalAlpha,
     TrendAlpha,
+    VolAdjMomentumAlpha,
+    VolumeShockAlpha,
 )
 
 __all__ = [
@@ -23,6 +26,9 @@ __all__ = [
     "TrendAlpha",
     "BreakoutAlpha",
     "FlatVolumeBreakoutAlpha",
+    "VolAdjMomentumAlpha",
+    "RangePositionAlpha",
+    "VolumeShockAlpha",
     "apply_alpha_profile",
     "get_alpha_profile",
     "list_alpha_profiles",

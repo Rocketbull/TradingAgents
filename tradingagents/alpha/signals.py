@@ -84,6 +84,83 @@ class TrendAlpha(AlphaSignal):
 
 
 @dataclass(frozen=True)
+class VolAdjMomentumAlpha(AlphaSignal):
+    name: str
+    momentum_window: int = 63
+    vol_window: int = 21
+
+    @property
+    def lookback(self) -> int:
+        return int(max(self.momentum_window + 1, self.vol_window + 2))
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.shape[0] < self.lookback:
+            return pd.Series(0.0, index=closes.columns)
+        returns = closes.pct_change().dropna(how="all")
+        if returns.empty:
+            return pd.Series(0.0, index=closes.columns)
+        mom = closes.pct_change(int(self.momentum_window)).iloc[-1]
+        vol = returns.tail(int(self.vol_window)).std(ddof=0)
+        score = mom / vol.replace(0.0, np.nan)
+        return score.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+@dataclass(frozen=True)
+class RangePositionAlpha(AlphaSignal):
+    name: str
+    window: int = 63
+
+    @property
+    def lookback(self) -> int:
+        return int(self.window)
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.shape[0] < self.lookback:
+            return pd.Series(0.0, index=closes.columns)
+        trailing = closes.tail(int(self.window))
+        low = trailing.min(axis=0)
+        high = trailing.max(axis=0)
+        latest = closes.iloc[-1]
+        denom = (high - low).replace(0.0, np.nan)
+        pos01 = (latest - low) / denom
+        score = pos01 - 0.5
+        return score.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+@dataclass(frozen=True)
+class VolumeShockAlpha(AlphaSignal):
+    name: str
+    price_window: int = 5
+    vol_short_window: int = 5
+    vol_long_window: int = 20
+
+    @property
+    def lookback(self) -> int:
+        return int(max(self.price_window + 1, self.vol_long_window))
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.empty or volumes is None or volumes.empty:
+            return pd.Series(0.0, index=closes.columns)
+
+        common_cols = [c for c in closes.columns if c in volumes.columns]
+        if not common_cols:
+            return pd.Series(0.0, index=closes.columns)
+
+        c = closes[common_cols]
+        v = volumes[common_cols]
+        if c.shape[0] < self.lookback or v.shape[0] < int(self.vol_long_window):
+            return pd.Series(0.0, index=closes.columns)
+
+        price_ret = c.pct_change(int(self.price_window)).iloc[-1]
+        vol_short = v.rolling(int(self.vol_short_window), min_periods=int(self.vol_short_window)).mean()
+        vol_long = v.rolling(int(self.vol_long_window), min_periods=int(self.vol_long_window)).mean()
+        vol_ratio = (vol_short / vol_long.replace(0.0, np.nan)).iloc[-1]
+        vol_shock = (vol_ratio - 1.0).clip(lower=0.0)
+        score = price_ret * vol_shock
+        return score.reindex(closes.columns).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+@dataclass(frozen=True)
 class BreakoutAlpha(AlphaSignal):
     name: str
     window: int
