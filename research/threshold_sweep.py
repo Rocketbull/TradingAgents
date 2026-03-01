@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
-from pathlib import Path
 from itertools import product
+from pathlib import Path
+import sys
 
 import pandas as pd
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from research.common.run_manager import ResearchRunManager
 from tradingagents.dataflows.market_data_store import load_history_parquet
 
 
@@ -26,6 +31,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run threshold sweeps for SPY/lead hypothesis.")
     parser.add_argument("--data-dir", default="data/market", help="Parquet root directory")
     parser.add_argument("--output-dir", default="research/output", help="Sweep output directory")
+    parser.add_argument("--run-tag", default=None, help="Optional run tag. Defaults to deterministic hash tag.")
+    parser.add_argument(
+        "--config-json",
+        default=None,
+        help="Optional config JSON path recorded in manifest for reproducibility.",
+    )
     parser.add_argument("--start-date", required=True, help="Start date YYYY-MM-DD")
     parser.add_argument("--end-date", required=True, help="End date YYYY-MM-DD")
     parser.add_argument("--spy-symbol", default="SPY", help="SPY-like index symbol")
@@ -61,6 +72,24 @@ def main() -> None:
     args = parse_args()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    params = {
+        "script": "threshold_sweep",
+        "start_date": args.start_date,
+        "end_date": args.end_date,
+        "spy_symbol": str(args.spy_symbol).upper(),
+        "lead_symbol": str(args.lead_symbol).upper(),
+        "spy_thresholds_pct": [float(v) for v in args.spy_thresholds_pct],
+        "lead_thresholds_pct": [float(v) for v in args.lead_thresholds_pct],
+        "next_spy_drop_thresholds_pct": [float(v) for v in args.next_spy_drop_thresholds_pct],
+        "min_signal_days": int(args.min_signal_days),
+    }
+    run_manager = ResearchRunManager(
+        out_dir=output_dir,
+        params=params,
+        run_tag=args.run_tag,
+        tag_prefix="threshold_sweep",
+    )
+    run_dir = run_manager.run_dir()
 
     spy = load_history_parquet(
         symbol=args.spy_symbol,
@@ -135,16 +164,28 @@ def main() -> None:
     result = pd.DataFrame(rows).sort_values(
         by=["lift_vs_base_rate", "hit_rate", "signal_days"], ascending=[False, False, False]
     )
-
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    output_path = output_dir / (
-        f"threshold_sweep_{args.spy_symbol}_{args.lead_symbol}_"
-        f"{args.start_date}_{args.end_date}_{timestamp}.csv"
+    summary_path = run_dir / "summary.csv"
+    result.to_csv(summary_path, index=False)
+    params_path = run_manager.write_params(
+        extra={
+            "sweep_rows": int(len(result)),
+            "sample_days": int(valid.shape[0]),
+            "top_lift": float(result.iloc[0]["lift_vs_base_rate"]),
+        }
     )
-    result.to_csv(output_path, index=False)
+    manifest_path = run_manager.write_manifest(
+        artifacts={
+            "summary_csv": str(summary_path),
+            "params_json": str(params_path),
+        },
+        config_json=args.config_json,
+    )
 
-    print(f"Sweep rows: {len(result)}")
-    print(f"Saved: {output_path}")
+    print(f"[ok] run_tag: {run_manager.resolved_run_tag()}")
+    print(f"[ok] sweep rows: {len(result)}")
+    print(f"[ok] summary: {summary_path}")
+    print(f"[ok] params: {params_path}")
+    print(f"[ok] manifest: {manifest_path}")
     print("Top 5:")
     print(result.head(5).to_string(index=False))
 

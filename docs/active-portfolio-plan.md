@@ -525,12 +525,12 @@ These are intentionally deferred while the project prioritizes framework complet
 - TODO 3: Standardize research scripts on shared framework
   - Rule: migrate `research/hypothesis_analysis.py` and `research/threshold_sweep.py` to use shared run manager + manifest pattern.
   - Purpose: make research outputs consistently reproducible and easier to compare in one viewer.
-  - Status: pending.
+  - Status: implemented in `research/hypothesis_analysis.py` and `research/threshold_sweep.py` (run-tagged output + `summary.csv` + `params.json` + `manifest.json`).
 
 - TODO 4: Cross-run experiment registry and comparison report
   - Rule: add an index file (or parquet/csv table) that records all runs with key metrics for filtering and ranking.
   - Purpose: support repeatable parameter sweeps and apples-to-apples comparisons across experiments.
-  - Status: pending.
+  - Status: implemented via `research/build_experiment_registry.py` and `research/common/experiment_registry.py` (emits `experiment_registry.csv` + `experiment_comparison.csv`).
 
 - TODO 5: Long-short expansion path (beta-neutral and 130/30)
   - Rule: extend current benchmark-relative architecture to support:
