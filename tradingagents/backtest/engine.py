@@ -58,13 +58,22 @@ class BacktestEngine:
                 if self.config.get("active_weight_cap") is not None
                 else None
             ),
+            sector_active_weight_cap=(
+                float(self.config["sector_active_weight_cap"])
+                if self.config.get("sector_active_weight_cap") is not None
+                else None
+            ),
             tracking_error_target=(
                 float(self.config["tracking_error_target"])
                 if self.config.get("tracking_error_target") is not None
                 else None
             ),
             turnover_limit=float(self.config.get("turnover_limit", 0.20)),
-            sector_cap=float(self.config.get("sector_cap", 0.25)),
+            sector_cap=(
+                float(self.config["sector_cap"])
+                if self.config.get("sector_cap") is not None
+                else None
+            ),
         )
         self.rebalancer = Rebalancer(
             transaction_cost_bps=float(self.config.get("transaction_cost_bps", 5.0))

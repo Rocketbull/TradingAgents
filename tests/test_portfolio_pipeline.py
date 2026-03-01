@@ -238,6 +238,36 @@ def test_optimizer_enforces_active_weight_cap():
         assert abs(float(target[symbol]) - float(benchmark[symbol])) <= 0.050001
 
 
+def test_optimizer_enforces_sector_active_weight_cap():
+    closes = _price_frame()
+    cov = RiskModel().covariance(closes)
+    alpha = pd.Series({"AAA": 5.0, "BBB": 4.0, "CCC": -1.0, "SPY": -2.0})
+    benchmark = {symbol: 0.25 for symbol in alpha.index}
+    sectors = {
+        "AAA": "Tech",
+        "BBB": "Tech",
+        "CCC": "Utilities",
+        "SPY": "Utilities",
+    }
+    optimizer = PortfolioOptimizer(
+        max_weight=0.80,
+        turnover_limit=1.0,
+        sector_active_weight_cap=0.05,
+    )
+    target = optimizer.optimize(
+        alpha_scores=alpha,
+        covariance=cov,
+        current_weights=benchmark,
+        benchmark_weights=benchmark,
+        sector_map=sectors,
+    )
+    tech_w = float(target["AAA"]) + float(target["BBB"])
+    util_w = float(target["CCC"]) + float(target["SPY"])
+    # Benchmark sector totals are 0.5 / 0.5; cap is +/- 0.05.
+    assert 0.449999 <= tech_w <= 0.550001
+    assert 0.449999 <= util_w <= 0.550001
+
+
 def test_ic_weighted_alpha_uses_history():
     closes = _price_frame()
     model = AlphaModel()

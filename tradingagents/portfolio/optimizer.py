@@ -18,6 +18,7 @@ class PortfolioOptimizer:
     risk_aversion: float = 3.0
     max_weight: float = 0.05
     active_weight_cap: Optional[float] = None
+    sector_active_weight_cap: Optional[float] = None
     tracking_error_target: Optional[float] = None
     turnover_limit: float = 0.20
     sector_cap: Optional[float] = None
@@ -78,6 +79,12 @@ class PortfolioOptimizer:
             cov_matrix=cov,
             weight_bounds=bounds,
         )
+        self._add_sector_active_constraints(
+            ef=ef,
+            symbols=list(alpha_scores.index),
+            benchmark=benchmark,
+            sector_map=sector_map,
+        )
         if self.tracking_error_target is not None and float(self.tracking_error_target) > 0:
             te_ann = float(self.tracking_error_target)
             te_var_daily = (te_ann * te_ann) / 252.0
@@ -88,10 +95,12 @@ class PortfolioOptimizer:
         weights = pd.Series(ef.clean_weights()).reindex(alpha_scores.index).fillna(0.0)
         weights = self._apply_sector_cap(weights, sector_map)
         weights = self._enforce_active_cap(weights, benchmark)
+        weights = self._enforce_sector_active_cap(weights, benchmark, sector_map)
         raw_target = weights.copy()
         adjusted = self._apply_turnover(weights, current)
         adjusted = self._apply_sector_cap(adjusted, sector_map)
         adjusted = self._enforce_active_cap(adjusted, benchmark)
+        adjusted = self._enforce_sector_active_cap(adjusted, benchmark, sector_map)
         return adjusted.to_dict(), raw_target.to_dict()
 
     def _fallback_optimize(
@@ -116,10 +125,12 @@ class PortfolioOptimizer:
             target = target / target.sum()
         target = self._apply_sector_cap(target, sector_map)
         target = self._enforce_active_cap(target, benchmark)
+        target = self._enforce_sector_active_cap(target, benchmark, sector_map)
         raw_target = target.copy()
         adjusted = self._apply_turnover(target, current)
         adjusted = self._apply_sector_cap(adjusted, sector_map)
         adjusted = self._enforce_active_cap(adjusted, benchmark)
+        adjusted = self._enforce_sector_active_cap(adjusted, benchmark, sector_map)
         return adjusted.to_dict(), raw_target.to_dict()
 
     def _apply_turnover(self, target: pd.Series, current: pd.Series) -> pd.Series:
@@ -214,6 +225,94 @@ class PortfolioOptimizer:
                     break
                 w = w - removable * ((-deficit) / removable_sum)
         return w.clip(lower=0.0, upper=self.max_weight)
+
+    def _enforce_sector_active_cap(
+        self,
+        weights: pd.Series,
+        benchmark: pd.Series,
+        sector_map: Optional[Dict[str, str]],
+    ) -> pd.Series:
+        if (
+            self.sector_active_weight_cap is None
+            or float(self.sector_active_weight_cap) <= 0
+            or not sector_map
+        ):
+            return self._normalize_clip(weights)
+
+        cap = float(self.sector_active_weight_cap)
+        w0 = self._normalize_clip(weights)
+        b = self._normalize_nonnegative(benchmark.reindex(w0.index).fillna(0.0))
+
+        groups: Dict[str, list[int]] = {}
+        for i, s in enumerate(w0.index):
+            sec = sector_map.get(s) if isinstance(sector_map.get(s), str) and sector_map.get(s) else f"Unknown::{s}"
+            groups.setdefault(sec, []).append(i)
+
+        try:
+            import cvxpy as cp
+
+            x = cp.Variable(len(w0))
+            constraints = [
+                x >= 0.0,
+                x <= float(self.max_weight),
+                cp.sum(x) == 1.0,
+            ]
+            for idxs in groups.values():
+                b_sec = float(b.iloc[idxs].sum())
+                lower = max(0.0, b_sec - cap)
+                upper = min(1.0, b_sec + cap)
+                constraints.append(cp.sum(x[idxs]) >= lower)
+                constraints.append(cp.sum(x[idxs]) <= upper)
+
+            obj = cp.Minimize(cp.sum_squares(x - w0.values))
+            prob = cp.Problem(obj, constraints)
+            prob.solve(
+                solver=cp.OSQP,
+                eps_abs=1e-8,
+                eps_rel=1e-8,
+                max_iter=100000,
+                warm_start=True,
+            )
+            if x.value is None:
+                raise ValueError("No solution from cvxpy sector active projection")
+            w = pd.Series(np.asarray(x.value).reshape(-1), index=w0.index)
+            w = w.clip(lower=0.0, upper=self.max_weight)
+            total = float(w.sum())
+            if total <= 0:
+                return w0
+            if abs(total - 1.0) > 1e-6:
+                w = w / total
+            return w
+        except Exception:
+            return w0
+
+    def _add_sector_active_constraints(
+        self,
+        ef: Any,
+        symbols: list[str],
+        benchmark: pd.Series,
+        sector_map: Optional[Dict[str, str]],
+    ) -> None:
+        if (
+            self.sector_active_weight_cap is None
+            or float(self.sector_active_weight_cap) <= 0
+            or not sector_map
+        ):
+            return
+
+        cap = float(self.sector_active_weight_cap)
+        b = self._normalize_nonnegative(benchmark.reindex(symbols).fillna(0.0))
+        groups: Dict[str, list[int]] = {}
+        for i, s in enumerate(symbols):
+            sec = sector_map.get(s) if isinstance(sector_map.get(s), str) and sector_map.get(s) else f"Unknown::{s}"
+            groups.setdefault(sec, []).append(i)
+
+        for sec, idxs in groups.items():
+            b_sec = float(b.iloc[idxs].sum())
+            lower = max(0.0, b_sec - cap)
+            upper = min(1.0, b_sec + cap)
+            ef.add_constraint(lambda w, ii=idxs, lo=lower: sum(w[i] for i in ii) >= lo)
+            ef.add_constraint(lambda w, ii=idxs, hi=upper: sum(w[i] for i in ii) <= hi)
 
     def _weight_bounds(self, benchmark: pd.Series) -> list[tuple[float, float]]:
         b = self._normalize_nonnegative(benchmark)

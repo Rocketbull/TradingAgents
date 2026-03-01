@@ -37,6 +37,7 @@ DEFAULT_CONFIG = {
     "rebalance_frequency": "weekly",      # daily, weekly, monthly
     "max_weight": 0.05,
     "active_weight_cap": None,           # Optional absolute cap on |w - benchmark_w|
+    "sector_active_weight_cap": None,    # Optional cap on |sector_w - sector_benchmark_w|
     "tracking_error_target": None,       # Optional annualized ex-ante TE target
     "sector_cap": 0.25,
     "turnover_limit": 0.20,
