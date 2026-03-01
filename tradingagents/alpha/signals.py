@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -273,6 +274,87 @@ class BtcGldCorrelationAlpha(AlphaSignal):
         score = score.drop(labels=[risk, defensive], errors="ignore")
         score.index = [mapped.get(i, i) for i in score.index]
         return score.reindex(closes.columns).fillna(0.0)
+
+
+@dataclass(frozen=True)
+class SectorMomentumTop2Alpha(AlphaSignal):
+    name: str
+    momentum_window: int = 63
+    top_k_per_sector: int = 2
+    sector_classification_cache: str = "data/market/metadata/yfinance_classification.csv"
+    fundamentals_csv: str | None = None
+    min_sector_coverage: float = 0.70
+    _sector_map_cache: dict[str, str] = field(default_factory=dict, init=False, repr=False, compare=False)
+
+    @property
+    def lookback(self) -> int:
+        return int(self.momentum_window) + 1
+
+    @staticmethod
+    def _extract_sector_map(df: pd.DataFrame) -> dict[str, str]:
+        if df.empty:
+            return {}
+        cols = {str(c).strip().lower(): c for c in df.columns}
+        sym_col = cols.get("symbol", cols.get("ticker"))
+        sec_col = cols.get("sector")
+        if sym_col is None or sec_col is None:
+            return {}
+        out: dict[str, str] = {}
+        raw = df[[sym_col, sec_col]].copy()
+        raw[sym_col] = raw[sym_col].astype(str).str.upper()
+        raw[sec_col] = raw[sec_col].astype(str).str.strip()
+        for _, row in raw.iterrows():
+            sym = str(row[sym_col]).upper().strip()
+            sec = str(row[sec_col]).strip()
+            if not sym or not sec or sec.lower() == "nan":
+                continue
+            out[sym] = sec
+        return out
+
+    def _load_sector_map(self) -> dict[str, str]:
+        if self._sector_map_cache:
+            return self._sector_map_cache
+
+        selected: dict[str, str] = {}
+        if self.fundamentals_csv:
+            fundamentals_path = Path(str(self.fundamentals_csv))
+            if fundamentals_path.exists():
+                df_fund = pd.read_csv(fundamentals_path)
+                selected = self._extract_sector_map(df_fund)
+
+        if not selected:
+            class_path = Path(str(self.sector_classification_cache))
+            if class_path.exists():
+                df_cls = pd.read_csv(class_path)
+                selected = self._extract_sector_map(df_cls)
+
+        self._sector_map_cache.update(selected)
+        return self._sector_map_cache
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.shape[0] < self.lookback:
+            return pd.Series(0.0, index=closes.columns)
+
+        k = max(1, int(self.top_k_per_sector))
+        momentum = closes.pct_change(int(self.momentum_window)).iloc[-1]
+        sector_map = self._load_sector_map()
+        if not sector_map:
+            return pd.Series(0.0, index=closes.columns)
+
+        by_sector: dict[str, list[tuple[str, float]]] = {}
+        for symbol, val in momentum.dropna().items():
+            sym_u = str(symbol).upper()
+            sector = sector_map.get(sym_u)
+            if not isinstance(sector, str) or not sector.strip():
+                continue
+            by_sector.setdefault(sector.strip(), []).append((str(symbol), float(val)))
+
+        score = pd.Series(0.0, index=closes.columns, dtype=float)
+        for _, pairs in by_sector.items():
+            ranked = sorted(pairs, key=lambda x: x[1], reverse=True)[:k]
+            for symbol, val in ranked:
+                score.loc[symbol] = float(val)
+        return score.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
 
 def cross_sectional_zscore(values: pd.Series) -> pd.Series:

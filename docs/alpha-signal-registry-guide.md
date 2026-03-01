@@ -21,6 +21,12 @@ If it is empty, the built-in default signal set is used.
 - `vol_adj_momentum`: params `name`, `momentum_window`, `vol_window`
 - `range_position`: params `name`, `window`
 - `volume_shock`: params `name`, `price_window`, `vol_short_window`, `vol_long_window`
+- `sector_momentum_top2`: params
+  - `name`, `momentum_window` (default `63`)
+  - `top_k_per_sector` (default `2`)
+  - `sector_classification_cache` (default `data/market/metadata/yfinance_classification.csv`)
+  - `fundamentals_csv` (optional path to fundamentals CSV with `symbol,sector`)
+  - `min_sector_coverage` (default `0.70`)
 - `btc_gld_corr`: params
   - `name`, `lookback_window` (default `120`)
   - `risk_symbol` (default `BTC-USD`)
@@ -60,8 +66,35 @@ config["alpha_signals"] = [
   - `TradingAgentsGraph` -> `AlphaModel.from_config(self.config)`
 - Demo script path already uses registry loading:
   - `tools/demo_portfolio_run.py`
+- Backtest runner:
+  - `tools/run_backtest.py`
 - Primary import path:
   - `from tradingagents.alpha import AlphaModel`
+
+## Single-Alpha Run
+To force a single alpha in backtest:
+
+```python
+config["alpha_signal_registry"] = [
+    {
+        "type": "sector_momentum_top2",
+        "name": "sec_mom_top2",
+        "momentum_window": 63,
+        "top_k_per_sector": 2,
+        "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
+    }
+]
+config["alpha_signals"] = ["sec_mom_top2"]
+```
+
+CLI usage (single alpha selection by name):
+
+```bash
+.conda/tradingagents/bin/python tools/run_backtest.py \
+  --start-date 2024-01-01 \
+  --end-date 2025-12-31 \
+  --alpha-signal sec_mom_top2
+```
 
 ## Preset Profiles
 You can start from built-in presets:

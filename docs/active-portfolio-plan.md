@@ -17,7 +17,7 @@ Completed:
   - `tradingagents/backtest/engine.py`
   - `tradingagents/backtest/accounting.py`
   - `tradingagents/backtest/data_loader.py`
-  - `tools/demo_backtest.py`
+  - `tools/run_backtest.py`
 - Portfolio construction core:
   - `tradingagents/portfolio/risk_model.py`
   - `tradingagents/portfolio/optimizer.py`

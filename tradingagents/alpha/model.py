@@ -15,6 +15,7 @@ from .signals import (
     MomentumAlpha,
     RangePositionAlpha,
     ReversalAlpha,
+    SectorMomentumTop2Alpha,
     TrendAlpha,
     VolAdjMomentumAlpha,
     VolumeShockAlpha,
@@ -128,6 +129,16 @@ class AlphaModel:
                 defensive_weight=float(d.get("defensive_weight", 1.0)),
                 risk_weight=float(d.get("risk_weight", 1.0)),
                 flip_sign=bool(d.get("flip_sign", True)),
+            ),
+            "sector_momentum_top2": lambda d: SectorMomentumTop2Alpha(
+                name=str(d.get("name", "sector_momentum_top2")),
+                momentum_window=int(d.get("momentum_window", 63)),
+                top_k_per_sector=int(d.get("top_k_per_sector", 2)),
+                sector_classification_cache=str(
+                    d.get("sector_classification_cache", "data/market/metadata/yfinance_classification.csv")
+                ),
+                fundamentals_csv=(str(d.get("fundamentals_csv")) if d.get("fundamentals_csv") else None),
+                min_sector_coverage=float(d.get("min_sector_coverage", 0.70)),
             ),
         }
 

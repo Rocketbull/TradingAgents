@@ -55,6 +55,34 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     assert "benchmark_weights" in result["rebalance_log"][0]
 
 
+def test_backtest_engine_honors_single_alpha_selection(tmp_path: Path):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_single_alpha"),
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+            "alpha_signal_registry": [
+                {"type": "momentum", "name": "mom_1m", "window": 21},
+                {"type": "reversal", "name": "rev_1w", "window": 5},
+            ],
+            "alpha_signals": ["mom_1m"],
+        }
+    )
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=_close_frame())
+
+    first = result["rebalance_log"][0]
+    assert set(first["alpha_weights"].keys()) == {"mom_1m"}
+    assert set(first["signal_ic"].keys()) == {"mom_1m"}
+
+
 def test_backtest_engine_regime_switch_logs_state(tmp_path: Path):
     config = DEFAULT_CONFIG.copy()
     config.update(

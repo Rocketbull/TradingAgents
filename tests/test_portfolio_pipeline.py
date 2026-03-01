@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import pandas as pd
 
@@ -129,6 +130,20 @@ def _volume_shock_frame() -> tuple[pd.DataFrame, pd.DataFrame]:
         }
     )
     return closes, volumes
+
+
+def _sector_momentum_frame() -> pd.DataFrame:
+    idx = pd.date_range("2025-01-01", periods=90, freq="D")
+    t = pd.Series(range(len(idx)), index=idx, dtype=float)
+    return pd.DataFrame(
+        {
+            "AAA": 100.0 + 1.20 * t,
+            "BBB": 100.0 + 0.30 * t,
+            "CCC": 100.0 + 0.90 * t,
+            "DDD": 100.0 + 0.10 * t,
+        },
+        index=idx,
+    )
 
 
 def test_alpha_and_risk_model_shapes():
@@ -464,6 +479,37 @@ def test_alpha_model_registry_builds_new_signal_types():
     assert float(comps["vam"].abs().sum()) > 0.0
     assert float(comps["range_1m"].abs().sum()) > 0.0
     assert float(comps["vol_shock"].abs().sum()) > 0.0
+
+
+def test_alpha_model_registry_builds_sector_momentum_top2(tmp_path: Path):
+    closes = _sector_momentum_frame()
+    cls_path = tmp_path / "classification.csv"
+    cls_path.write_text(
+        "symbol,sector\n"
+        "AAA,Technology\n"
+        "BBB,Technology\n"
+        "CCC,Utilities\n"
+        "DDD,Utilities\n",
+        encoding="utf-8",
+    )
+    model = AlphaModel.from_config(
+        {
+            "alpha_signal_registry": [
+                {
+                    "type": "sector_momentum_top2",
+                    "name": "sec_mom_top1",
+                    "momentum_window": 21,
+                    "top_k_per_sector": 1,
+                    "sector_classification_cache": str(cls_path),
+                }
+            ]
+        }
+    )
+    comps = model.component_scores(closes)
+    assert set(comps.columns) == {"sec_mom_top1"}
+    # Top-1 per sector should prefer AAA over BBB and CCC over DDD.
+    assert float(comps.loc["AAA", "sec_mom_top1"]) > float(comps.loc["BBB", "sec_mom_top1"])
+    assert float(comps.loc["CCC", "sec_mom_top1"]) > float(comps.loc["DDD", "sec_mom_top1"])
 
 
 def test_alpha_profiles_apply_and_list():
