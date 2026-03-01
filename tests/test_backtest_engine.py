@@ -120,6 +120,7 @@ def test_resolve_universe_schedule_rebalances_snapshot_asof():
             "universe_source": "sp500_snapshot",
             "benchmark_symbol": "SPY",
             "portfolio_universe_size": 50,
+            "snapshot_schedule_enabled": True,
         }
     )
     engine = BacktestEngine(config)
@@ -144,6 +145,38 @@ def test_resolve_universe_schedule_rebalances_snapshot_asof():
     assert sched[dates[0]] == ["SPY", "AAA", "BBB"]
     assert sched[dates[1]] == ["SPY", "CCC", "DDD"]
     assert calls == ["2024-05-31", "2024-06-07"]
+
+
+def test_resolve_universe_schedule_snapshot_latest_mode():
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "universe_source": "sp500_snapshot",
+            "benchmark_symbol": "SPY",
+            "portfolio_universe_size": 50,
+            "snapshot_schedule_enabled": False,
+        }
+    )
+    engine = BacktestEngine(config)
+    dates = [pd.Timestamp("2024-05-31"), pd.Timestamp("2024-06-07")]
+    calls: list[str | None] = []
+
+    def fake_load_symbols(
+        universe_source: str,
+        portfolio_universe: list[str],
+        portfolio_universe_size: int,
+        benchmark_symbol: str,
+        fallback_symbol: str,
+        asof_date: str | None = None,
+    ) -> list[str]:
+        calls.append(asof_date)
+        return ["SPY", "AAA", "BBB"]
+
+    engine.data_loader.load_symbols = fake_load_symbols  # type: ignore[method-assign]
+    sched = engine._resolve_universe_schedule(dates, fallback_symbol="SPY")
+    assert sched[dates[0]] == ["SPY", "AAA", "BBB"]
+    assert sched[dates[1]] == ["SPY", "AAA", "BBB"]
+    assert calls == [None]
 
 
 def test_engine_prefers_legacy_symbol_and_snapshot_paths(tmp_path: Path):

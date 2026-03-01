@@ -26,6 +26,9 @@ DEFAULT_CONFIG = {
     "portfolio_universe": [],             # Used when universe_source=config_list
     "portfolio_universe_size": 50,        # Used when universe_source=sp500_file
     "universe_snapshot_dir": "data/universe/sp500/snapshots",
+    # When False, sp500_snapshot uses one latest available snapshot for all rebalance dates.
+    # When True, sp500_snapshot resolves membership as of each rebalance date.
+    "snapshot_schedule_enabled": False,
     "dynamic_liquidity_filter": False,
     "liquidity_top_n": 100,
     "liquidity_lookback_days": 60,
@@ -80,6 +83,12 @@ DEFAULT_CONFIG = {
     "alpha_weight_smoothing": 0.25,
     "alpha_max_signal_weight": 0.35,
     "ic_ewm_decay": 0.85,
+    # IC gating (disabled by default while framework evolves).
+    "ic_gate_min_mean": None,         # Example: 0.01
+    "ic_gate_use_abs_mean": False,    # Use |IC| for threshold in signed mode if desired.
+    "ic_gate_min_tstat": None,        # Example: 1.0
+    "ic_gate_min_hit_rate": None,     # Example: 0.52
+    "ic_gate_min_samples": 8,         # Minimum history points for significance gates.
     # Regime switch settings (optional dynamic alpha/profile routing)
     "regime_switch_enabled": False,
     "regime_model_type": "rule_v1",  # rule_v1

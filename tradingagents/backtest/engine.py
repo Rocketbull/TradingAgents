@@ -319,6 +319,11 @@ class BacktestEngine:
                 weight_smoothing=float(self.config.get("alpha_weight_smoothing", 0.25)),
                 max_signal_weight=float(self.config.get("alpha_max_signal_weight", 0.35)),
                 ic_ewm_decay=float(self.config.get("ic_ewm_decay", 0.85)),
+                ic_gate_min_mean=self.config.get("ic_gate_min_mean"),
+                ic_gate_use_abs_mean=bool(self.config.get("ic_gate_use_abs_mean", False)),
+                ic_gate_min_tstat=self.config.get("ic_gate_min_tstat"),
+                ic_gate_min_hit_rate=self.config.get("ic_gate_min_hit_rate"),
+                ic_gate_min_samples=int(self.config.get("ic_gate_min_samples", 8)),
             )
             covariance = self.risk_model.covariance(history)
 
@@ -550,48 +555,56 @@ class BacktestEngine:
         portfolio_universe = list(self.config.get("portfolio_universe", []))
         portfolio_universe_size = int(self.config.get("portfolio_universe_size", 50))
         schedule: dict[pd.Timestamp, list[str]] = {}
+        snapshot_schedule_enabled = bool(self.config.get("snapshot_schedule_enabled", False))
 
-        if source != "sp500_snapshot":
-            symbols = self.data_loader.load_symbols(
-                universe_source=source,
-                portfolio_universe=portfolio_universe,
-                portfolio_universe_size=portfolio_universe_size,
-                benchmark_symbol=benchmark_symbol,
-                fallback_symbol=fallback_symbol,
-                asof_date=self.config.get("backtest_start_date"),
-            )
-            for d in rebalance_dates:
-                schedule[d] = list(symbols)
-            return schedule
-
-        for d in rebalance_dates:
-            asof = pd.Timestamp(d).strftime("%Y-%m-%d")
+        def _load_symbols_with_legacy(asof_date: str | None) -> list[str]:
             try:
-                symbols = self.data_loader.load_symbols(
+                return self.data_loader.load_symbols(
                     universe_source=source,
                     portfolio_universe=portfolio_universe,
                     portfolio_universe_size=portfolio_universe_size,
                     benchmark_symbol=benchmark_symbol,
                     fallback_symbol=fallback_symbol,
-                    asof_date=asof,
+                    asof_date=asof_date,
                 )
             except FileNotFoundError:
                 legacy_snapshot_dir = Path("data/market/universe")
-                if self.data_loader.universe_snapshot_dir == legacy_snapshot_dir or not legacy_snapshot_dir.exists():
+                if (
+                    self.data_loader.universe_snapshot_dir == legacy_snapshot_dir
+                    or not legacy_snapshot_dir.exists()
+                ):
                     raise
                 legacy_loader = LocalParquetDataLoader(
                     data_root=self.data_loader.data_root,
                     symbol_file=self.data_loader.symbol_file,
                     universe_snapshot_dir=legacy_snapshot_dir,
                 )
-                symbols = legacy_loader.load_symbols(
+                return legacy_loader.load_symbols(
                     universe_source=source,
                     portfolio_universe=portfolio_universe,
                     portfolio_universe_size=portfolio_universe_size,
                     benchmark_symbol=benchmark_symbol,
                     fallback_symbol=fallback_symbol,
-                    asof_date=asof,
+                    asof_date=asof_date,
                 )
+
+        if source != "sp500_snapshot":
+            symbols = _load_symbols_with_legacy(asof_date=self.config.get("backtest_start_date"))
+            for d in rebalance_dates:
+                schedule[d] = list(symbols)
+            return schedule
+
+        if not snapshot_schedule_enabled:
+            # Keep historical runs stable by default: use one latest-available snapshot
+            # for all rebalance dates.
+            symbols = _load_symbols_with_legacy(asof_date=None)
+            for d in rebalance_dates:
+                schedule[d] = list(symbols)
+            return schedule
+
+        for d in rebalance_dates:
+            asof = pd.Timestamp(d).strftime("%Y-%m-%d")
+            symbols = _load_symbols_with_legacy(asof_date=asof)
             schedule[d] = list(symbols)
         return schedule
 

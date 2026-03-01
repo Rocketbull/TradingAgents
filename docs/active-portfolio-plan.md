@@ -78,7 +78,12 @@ This section captures where the current implementation is still below practical 
 
 3. IC weighting is framework-appropriate but not robust enough yet.
 - Strengths: rolling IC, EWMA, correlation penalty, cap, smoothing.
-- Gaps: no significance gate / threshold gate, no confidence-aware shrinkage.
+- Status update: threshold/significance gates now implemented as configurable options (`ic_gate_*`) and kept disabled by default.
+- Remaining gap: calibrate gate thresholds by universe/regime and validate via walk-forward.
+- A/B calibration note (2026-03-01):
+  - Gate-on variants under current momentum-heavy profile underperformed gate-off in full-window tests.
+  - Diagnostic: high fallback frequency (many rebalance dates with zero signals passing gates) dominated behavior.
+  - Action: keep gates default-off until signal quality/regime-conditional calibration improves.
 - Practicality risk: medium-high.
 
 4. Risk model remains covariance-only.
@@ -426,7 +431,9 @@ This section extends the plan with concepts directly aligned with Grinold/Kahn a
 Priority 1 (data correctness):
 - Add universe snapshot support:
   - New input format: `data/universe/sp500/snapshots/sp500_membership_YYYY-MM-DD.csv`
-  - Backtest should resolve the latest snapshot available on each rebalance date.
+  - Backtest can resolve snapshot per rebalance date (`snapshot_schedule_enabled=True`).
+  - Current default is static latest snapshot for stability (`snapshot_schedule_enabled=False`).
+  - Added snapshot build pipeline: `tools/build_sp500_snapshots.py`.
   - Acceptance: no forward-looking membership in historical windows.
 
 Priority 2 (optimizer realism):
@@ -505,12 +512,12 @@ These are intentionally deferred while the project prioritizes framework complet
 - TODO 1: IC threshold gate (signal pruning)
   - Rule: set a signal weight to zero when rolling IC is below a configurable minimum.
   - Purpose: prevent persistently weak signals from polluting composite alpha.
-  - Status: deferred.
+  - Status: implemented (configurable; default off).
 
 - TODO 2: IC significance gate (robustness filter)
   - Rule: require minimum statistical strength (for example IC t-stat and/or hit-rate threshold) before allowing non-zero signal weight.
   - Purpose: avoid overreacting to noise in short IC histories.
-  - Status: deferred.
+  - Status: implemented (configurable; default off).
 
 - TODO 3: Standardize research scripts on shared framework
   - Rule: migrate `research/hypothesis_analysis.py` and `research/threshold_sweep.py` to use shared run manager + manifest pattern.

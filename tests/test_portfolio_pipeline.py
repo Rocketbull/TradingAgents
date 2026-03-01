@@ -264,6 +264,56 @@ def test_ic_weight_stabilization_caps_concentration():
     assert abs(sum(abs(v) for v in weights.values()) - 1.0) <= 1e-6
 
 
+def test_ic_threshold_gate_zeroes_weak_signal():
+    model = AlphaModel()
+    components = pd.DataFrame(
+        {
+            "strong": [-2.0, -1.0, 0.0, 1.0, 2.0],
+            "weak": [2.0, 1.0, 0.0, -1.0, -2.0],
+        },
+        index=["A", "B", "C", "D", "E"],
+    )
+    ic_history = {
+        "strong": [0.06, 0.05, 0.04, 0.03],
+        "weak": [0.004, 0.003, 0.002, 0.001],
+    }
+    _, weights = model.ic_weighted_alpha(
+        components=components,
+        ic_history=ic_history,
+        ic_lookback=4,
+        weighting_mode="positive",
+        ic_gate_min_mean=0.01,
+    )
+    assert weights["strong"] > 0.99
+    assert abs(weights["weak"]) < 1e-8
+
+
+def test_ic_significance_gate_filters_unstable_signal():
+    model = AlphaModel()
+    components = pd.DataFrame(
+        {
+            "stable": [-2.0, -1.0, 0.0, 1.0, 2.0],
+            "noisy": [2.0, -1.0, 1.0, -2.0, 0.0],
+        },
+        index=["A", "B", "C", "D", "E"],
+    )
+    ic_history = {
+        "stable": [0.03, 0.03, 0.03, 0.03, 0.03, 0.03],
+        "noisy": [0.2, -0.2, 0.2, -0.2, 0.2, -0.2],
+    }
+    _, weights = model.ic_weighted_alpha(
+        components=components,
+        ic_history=ic_history,
+        ic_lookback=6,
+        weighting_mode="positive",
+        ic_gate_min_tstat=1.0,
+        ic_gate_min_hit_rate=0.5,
+        ic_gate_min_samples=6,
+    )
+    assert weights["stable"] > 0.99
+    assert abs(weights["noisy"]) < 1e-8
+
+
 def test_alpha_model_from_config_builds_custom_registry():
     closes = _price_frame()
     config = {

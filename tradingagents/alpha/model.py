@@ -192,15 +192,21 @@ class AlphaModel:
         weight_smoothing: float = 0.0,
         max_signal_weight: float | None = None,
         ic_ewm_decay: float = 0.0,
+        ic_gate_min_mean: float | None = None,
+        ic_gate_use_abs_mean: bool = False,
+        ic_gate_min_tstat: float | None = None,
+        ic_gate_min_hit_rate: float | None = None,
+        ic_gate_min_samples: int = 8,
     ) -> tuple[pd.Series, Dict[str, float]]:
-        # TODO(framework-stage, deferred):
-        # 1) Add IC threshold gating to zero-out persistently weak signals.
-        # 2) Add IC significance gating (t-stat / hit-rate filter) before non-zero weights.
         if components.empty:
             return pd.Series(dtype=float), {}
 
         ic_history = ic_history or {}
         mean_ic = pd.Series(index=components.columns, dtype=float)
+        ic_std = pd.Series(index=components.columns, dtype=float)
+        ic_n = pd.Series(index=components.columns, dtype=float)
+        ic_tstat = pd.Series(index=components.columns, dtype=float)
+        ic_hit_rate = pd.Series(index=components.columns, dtype=float)
         ic_ewm_decay = float(np.clip(ic_ewm_decay, 0.0, 0.999))
         for name in components.columns:
             values = list(ic_history.get(name, []))
@@ -209,7 +215,15 @@ class AlphaModel:
             finite = tail_arr[np.isfinite(tail_arr)]
             if finite.size == 0:
                 mean_ic.loc[name] = np.nan
+                ic_std.loc[name] = np.nan
+                ic_n.loc[name] = 0.0
+                ic_tstat.loc[name] = np.nan
+                ic_hit_rate.loc[name] = np.nan
                 continue
+
+            n_obs = int(finite.size)
+            ic_n.loc[name] = float(n_obs)
+            ic_hit_rate.loc[name] = float(np.mean(finite > 0.0))
             if ic_ewm_decay > 0 and finite.size > 1:
                 # EWMA with stronger weight on recent observations.
                 weights = np.power(ic_ewm_decay, np.arange(finite.size - 1, -1, -1))
@@ -218,12 +232,49 @@ class AlphaModel:
             else:
                 mean_ic.loc[name] = float(finite.mean())
 
+            std_val = float(np.std(finite, ddof=1)) if n_obs > 1 else np.nan
+            ic_std.loc[name] = std_val
+            if n_obs > 1 and std_val > 0:
+                ic_tstat.loc[name] = float(mean_ic.loc[name] / std_val * np.sqrt(n_obs))
+            elif n_obs > 1 and std_val == 0:
+                mu = float(mean_ic.loc[name])
+                if mu > 0:
+                    ic_tstat.loc[name] = float(np.inf)
+                elif mu < 0:
+                    ic_tstat.loc[name] = float(-np.inf)
+                else:
+                    ic_tstat.loc[name] = 0.0
+            else:
+                ic_tstat.loc[name] = np.nan
+
         if weighting_mode == "signed":
             base = mean_ic.fillna(0.0)
         else:
             base = mean_ic.fillna(0.0).clip(lower=0.0)
 
+        # Gate weak / statistically fragile signals before correlation penalty.
+        gate_mask = pd.Series(True, index=components.columns, dtype=bool)
+        if ic_gate_min_mean is not None:
+            thr = float(ic_gate_min_mean)
+            if ic_gate_use_abs_mean:
+                gate_mask &= mean_ic.abs().fillna(0.0) >= thr
+            else:
+                gate_mask &= mean_ic.fillna(0.0) >= thr
+        has_significance_gate = (
+            ic_gate_min_tstat is not None or ic_gate_min_hit_rate is not None
+        )
+        if has_significance_gate:
+            min_samples = int(max(1, ic_gate_min_samples))
+            enough = ic_n.fillna(0.0) >= float(min_samples)
+            gate_mask &= enough
+            if ic_gate_min_tstat is not None:
+                gate_mask &= ic_tstat.fillna(-np.inf) >= float(ic_gate_min_tstat)
+            if ic_gate_min_hit_rate is not None:
+                gate_mask &= ic_hit_rate.fillna(0.0) >= float(ic_gate_min_hit_rate)
+        base = base.where(gate_mask, 0.0)
+
         if float(base.abs().sum()) <= 0.0:
+            # Safety fallback: avoid dead portfolio when all signals are gated out.
             base = pd.Series(1.0, index=components.columns, dtype=float)
 
         corr = components.corr().fillna(0.0)
