@@ -150,10 +150,15 @@ def test_alpha_and_risk_model_shapes():
     closes = _price_frame()
     model = AlphaModel()
     comps = model.component_scores(closes)
+    raw_comps = model.raw_component_scores(closes)
     alpha = model.score(closes)
     cov = RiskModel().covariance(closes)
     assert set(alpha.index) == {"AAA", "BBB", "CCC", "SPY"}
     assert set(comps.columns) >= {"mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"}
+    assert set(raw_comps.columns) == set(comps.columns)
+    assert raw_comps.shape == comps.shape
+    # Raw and z-scored component values should not be identical in general.
+    assert not raw_comps.equals(comps)
     assert cov.shape == (4, 4)
     assert list(cov.index) == list(cov.columns)
 

@@ -200,6 +200,26 @@ class AlphaModel:
             components[name] = cross_sectional_zscore(raw)
         return pd.DataFrame(components).fillna(0.0)
 
+    def raw_component_scores(
+        self,
+        closes: pd.DataFrame,
+        volumes: pd.DataFrame | None = None,
+        signals: Iterable[str] | None = None,
+    ) -> pd.DataFrame:
+        if closes.empty:
+            raise ValueError("closes is empty")
+
+        selected = list(signals) if signals is not None else self.available_signals()
+        missing = [name for name in selected if name not in self._signals]
+        if missing:
+            raise ValueError(f"Unknown alpha signals: {missing}")
+
+        components: dict[str, pd.Series] = {}
+        for name in selected:
+            raw = self._signals[name].compute(closes, volumes=volumes).reindex(closes.columns)
+            components[name] = pd.to_numeric(raw, errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        return pd.DataFrame(components).fillna(0.0)
+
     def score(
         self,
         closes: pd.DataFrame,

@@ -316,7 +316,13 @@ class BacktestEngine:
                 volumes=volume_history,
                 signals=signals,
             )
+            raw_components = active_alpha_model.raw_component_scores(
+                alpha_history,
+                volumes=volume_history,
+                signals=signals,
+            )
             components = components.reindex(history.columns).fillna(0.0)
+            raw_components = raw_components.reindex(history.columns).fillna(0.0)
             alpha_scores, alpha_weights = active_alpha_model.ic_weighted_alpha(
                 components,
                 ic_history=signal_ic_history,
@@ -333,6 +339,16 @@ class BacktestEngine:
                 ic_gate_min_tstat=self.config.get("ic_gate_min_tstat"),
                 ic_gate_min_hit_rate=self.config.get("ic_gate_min_hit_rate"),
                 ic_gate_min_samples=int(self.config.get("ic_gate_min_samples", 8)),
+            )
+            signal_weight_series = (
+                pd.Series(alpha_weights, dtype=float)
+                .reindex(components.columns)
+                .fillna(0.0)
+            )
+            raw_alpha_scores = (
+                raw_components.mul(signal_weight_series, axis=1).sum(axis=1)
+                .reindex(alpha_scores.index)
+                .fillna(0.0)
             )
             covariance = self.risk_model.covariance(history)
 
@@ -454,6 +470,8 @@ class BacktestEngine:
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "benchmark_weights": benchmark_all_weights,
                     "alpha_weights": {k: float(v) for k, v in alpha_weights.items()},
+                    "scores": {k: float(v) for k, v in raw_alpha_scores.items()},
+                    "z_scores": {k: float(v) for k, v in alpha_scores.items()},
                     "liquid_universe_size": int(len(liquid_symbols)),
                     "sector_map_coverage": float(
                         sum(1 for s in alpha_scores.index if s in sector_map)
