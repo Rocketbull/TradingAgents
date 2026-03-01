@@ -11,7 +11,7 @@ The plan includes:
 
 This plan is now used as a living status artifact and includes implemented vs pending scope.
 
-## Status Snapshot (as of 2026-02-28)
+## Status Snapshot (as of 2026-03-01)
 Completed:
 - Multi-asset backtest pipeline with rebalance simulation:
   - `tradingagents/backtest/engine.py`
@@ -44,6 +44,15 @@ Completed:
   - Benchmark proxy weights integrated into backtest rebalance loop.
   - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.
   - Attribution accepts pre/post-constraint active weights for TC estimation.
+- Regime-switching baseline (rule-based) and dynamic profile routing:
+  - `tradingagents/regime/model.py`
+  - Backtest integration with per-rebalance regime labels/scores/probabilities:
+    - `tradingagents/backtest/engine.py`
+  - Config hooks for regime model and regime-to-profile mapping:
+    - `tradingagents/default_config.py`
+  - Transition controls:
+    - minimum-hold and confidence-buffer gating before regime switches.
+    - raw vs applied regime labels logged for auditability.
 
 Partially completed:
 - Optimizer backend/fallback policy exists, but deterministic relaxation order is still basic.
@@ -469,6 +478,27 @@ Priority 6 (attribution correctness):
   - Backtest now passes unconstrained/constrained active weights into attribution diagnostics.
   - Remaining work: expose corrected TC explicitly in notebook dashboards as primary metric.
 
+Priority 7 (regime adaptation):
+- Add regime-aware alpha routing and evaluation:
+  - Implement baseline rule-based regime detector (`risk_on`, `neutral`, `risk_off`) using benchmark trend and BTC-vs-GLD relative behavior.
+  - Route alpha profiles by regime label at each rebalance.
+  - Persist regime diagnostics (label, score, probabilities) in rebalance logs and equity rows.
+  - Acceptance:
+    - regime fields present for each rebalance,
+    - profile switching deterministic under fixed data/config.
+- Add regime transition controls:
+  - Introduce hysteresis/min-hold option to reduce regime flip noise and turnover.
+  - Acceptance:
+    - reduced switch count without large IC degradation.
+- Add regime A/B protocol:
+  - Compare static profile vs regime-routed profiles across fixed windows.
+  - Require split-period reporting (example: H2-2025 vs 2026) to validate observed regime effects.
+  - Standardize run artifact layout as paired directories (`run_a`, `run_b`, `comparison.json`) under one A/B folder.
+  - Enforce warmup-aware start-date handling in A/B runners to avoid invalid range alignment.
+  - Acceptance:
+    - saved delta table with performance and turnover metrics by subperiod.
+    - paired A/B artifacts discoverable by notebook without manual path edits.
+
 ## 12) Deferred TODOs (Framework Stage)
 These are intentionally deferred while the project prioritizes framework completeness over alpha quality.
 
@@ -503,6 +533,15 @@ These are intentionally deferred while the project prioritizes framework complet
     - long-short specific diagnostics (gross/net exposure, beta drift, borrow drag).
   - Purpose: keep architecture ready for advanced mandate types while preserving current benchmark-relative implementation as baseline.
   - Status: future.
+
+- TODO 6: Regime model v2 (probabilistic / state-space)
+  - Rule: extend from rule-based labels to probabilistic regimes (e.g., HMM/Markov-switching) and blend alpha weights by regime probabilities.
+  - Required upgrades:
+    - per-regime IC histories and confidence-aware shrinkage,
+    - probability-weighted signal/profile blending,
+    - transition-cost-aware switching controls.
+  - Purpose: reduce hard-switch instability and improve robustness to regime transitions.
+  - Status: pending after rule-based v1 baseline.
 
 - Rationale for deferral:
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.

@@ -7,6 +7,7 @@ import pandas as pd
 
 from .base import AlphaSignal
 from .signals import (
+    BtcGldCorrelationAlpha,
     BreakoutAlpha,
     DownsideVolAlpha,
     FlatVolumeBreakoutAlpha,
@@ -97,6 +98,15 @@ class AlphaModel:
                 vol_short_window=int(d.get("vol_short_window", 5)),
                 vol_long_window=int(d.get("vol_long_window", 20)),
                 vol_ratio_min=float(d.get("vol_ratio_min", 1.50)),
+            ),
+            "btc_gld_corr": lambda d: BtcGldCorrelationAlpha(
+                name=str(d.get("name", "btc_gld_corr")),
+                lookback_window=int(d.get("lookback_window", 120)),
+                risk_symbol=str(d.get("risk_symbol", "BTC-USD")).upper(),
+                defensive_symbol=str(d.get("defensive_symbol", "GLD")).upper(),
+                defensive_weight=float(d.get("defensive_weight", 1.0)),
+                risk_weight=float(d.get("risk_weight", 1.0)),
+                flip_sign=bool(d.get("flip_sign", True)),
             ),
         }
 

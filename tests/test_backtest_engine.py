@@ -55,6 +55,64 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     assert "benchmark_weights" in result["rebalance_log"][0]
 
 
+def test_backtest_engine_regime_switch_logs_state(tmp_path: Path):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_regime"),
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+            "regime_switch_enabled": True,
+            "regime_alpha_profiles": {
+                "risk_on": "momentum_heavy",
+                "neutral": "conservative",
+                "risk_off": "mean_reversion_heavy",
+            },
+        }
+    )
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=_close_frame())
+
+    assert result["rebalance_log"], "Expected non-empty rebalance log"
+    first = result["rebalance_log"][0]
+    assert "regime" in first
+    assert first["regime"]["label"] in {"risk_on", "neutral", "risk_off"}
+    assert "raw_label" in first["regime"]
+    assert "switch_reason" in first["regime"]
+    assert "hold_count" in first["regime"]
+    assert "regime_profile" in first
+
+
+def test_regime_stability_blocks_switch_until_min_hold():
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "regime_switch_enabled": True,
+            "regime_min_hold_rebalances": 3,
+            "regime_switch_confidence_buffer": 0.10,
+        }
+    )
+    engine = BacktestEngine(config)
+    raw = {
+        "label": "risk_off",
+        "probabilities": {"risk_on": 0.05, "neutral": 0.05, "risk_off": 0.90},
+    }
+    label, switched, reason = engine._apply_regime_stability(
+        raw_regime=raw,
+        current_label="risk_on",
+        current_hold_count=1,
+    )
+    assert label == "risk_on"
+    assert switched is False
+    assert reason == "min_hold_block"
+
+
 def test_liquidity_selector_prefers_high_dollar_volume():
     idx = pd.date_range("2025-01-01", periods=80, freq="D")
     close = pd.DataFrame(

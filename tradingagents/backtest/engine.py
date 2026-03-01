@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, Optional
 
 import pandas as pd
 
-from tradingagents.alpha import AlphaModel
+from tradingagents.alpha import AlphaModel, apply_alpha_profile
 from tradingagents.dataflows.yfinance_classification import build_symbol_maps
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.portfolio import (
@@ -17,6 +17,7 @@ from tradingagents.portfolio import (
     Rebalancer,
     RiskModel,
 )
+from tradingagents.regime import RuleBasedRegimeModel
 
 from .accounting import PortfolioAccountant
 from .data_loader import LocalParquetDataLoader
@@ -33,6 +34,8 @@ class BacktestEngine:
         self.config = merged
 
         self.alpha_model = AlphaModel.from_config(self.config)
+        self.regime_model = self._build_regime_model()
+        self._alpha_model_cache: Dict[str, AlphaModel] = {}
         self.risk_model = RiskModel(lookback_days=int(self.config.get("alpha_lookback_days", 252)))
         self.optimizer = PortfolioOptimizer(
             risk_aversion=float(self.config.get("risk_aversion", 3.0)),
@@ -64,9 +67,11 @@ class BacktestEngine:
         )
         self.data_loader = LocalParquetDataLoader(
             data_root=Path(self.config.get("data_root", "data/market")),
-            symbol_file=Path(self.config.get("symbol_file", "data/market/sp500_symbols.txt")),
+            symbol_file=Path(
+                self.config.get("symbol_file", "data/universe/sp500/current/sp500_symbols.txt")
+            ),
             universe_snapshot_dir=Path(
-                self.config.get("universe_snapshot_dir", "data/market/universe")
+                self.config.get("universe_snapshot_dir", "data/universe/sp500/snapshots")
             ),
         )
 
@@ -100,22 +105,37 @@ class BacktestEngine:
             )
             load_start = (start_dt - timedelta(days=warmup_days)).strftime("%Y-%m-%d")
             close_prices = self.data_loader.load_close_matrix(symbols, load_start, end_date)
+            trading_index = close_prices.index
             try:
                 volume_matrix = self.data_loader.load_volume_matrix(symbols, load_start, end_date)
             except Exception:
                 volume_matrix = None
+            context_symbols = self._all_context_symbols()
+            if context_symbols:
+                try:
+                    context_prices = self.data_loader.load_close_matrix(
+                        context_symbols, load_start, end_date
+                    )
+                    context_prices = context_prices.reindex(trading_index).ffill()
+                    close_prices = pd.concat([close_prices, context_prices], axis=1)
+                    close_prices = close_prices.loc[:, ~close_prices.columns.duplicated(keep="first")]
+                except Exception:
+                    pass
         else:
             close_prices = close_prices.sort_index().copy()
             close_prices = close_prices.loc[close_prices.index <= pd.Timestamp(end_dt)]
             volume_matrix = None
 
         benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
+        context_symbols = set(self._all_context_symbols())
         benchmark_series = (
             close_prices[benchmark_symbol].copy()
             if benchmark_symbol in close_prices.columns
             else pd.Series(0.0, index=close_prices.index)
         )
         tradable_prices = close_prices.drop(columns=[benchmark_symbol], errors="ignore")
+        if context_symbols:
+            tradable_prices = tradable_prices.drop(columns=list(context_symbols), errors="ignore")
         tradable_volumes = (
             volume_matrix.drop(columns=[benchmark_symbol], errors="ignore")
             if volume_matrix is not None
@@ -151,6 +171,8 @@ class BacktestEngine:
         weights_rows: list[dict] = []
         signal_ic_history: Dict[str, list[float]] = {}
         prev_alpha_weights: Dict[str, float] = {}
+        applied_regime_label: str | None = None
+        applied_regime_hold_count = 0
         warmup_rows = max(
             int(self.risk_model.lookback_days) + 1,
             int(self.alpha_model.long_lookback) + 1,
@@ -188,6 +210,8 @@ class BacktestEngine:
             )
 
             history = tradable_prices.loc[:rebalance_date, liquid_symbols]
+            alpha_cols = list(dict.fromkeys(liquid_symbols + [s for s in context_symbols if s in close_prices.columns]))
+            alpha_history = close_prices.loc[:rebalance_date, alpha_cols]
             volume_history = (
                 tradable_volumes.loc[:rebalance_date, liquid_symbols]
                 if tradable_volumes is not None
@@ -196,17 +220,36 @@ class BacktestEngine:
             if history.shape[0] < warmup_rows:
                 continue
             signals = list(
-                self.config.get(
-                    "alpha_signals",
-                    ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"],
-                )
+                self.config.get("alpha_signals", ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"])
             )
-            components = self.alpha_model.component_scores(
-                history,
+            raw_regime = self._detect_regime(close_prices.loc[:rebalance_date])
+            regime_label, switched, switch_reason = self._apply_regime_stability(
+                raw_regime=raw_regime,
+                current_label=applied_regime_label,
+                current_hold_count=applied_regime_hold_count,
+            )
+            if regime_label == applied_regime_label:
+                applied_regime_hold_count += 1
+            else:
+                applied_regime_label = regime_label
+                applied_regime_hold_count = 1
+            regime = dict(raw_regime)
+            regime["raw_label"] = raw_regime.get("label", "static")
+            regime["label"] = regime_label
+            regime["switched"] = bool(switched)
+            regime["switch_reason"] = str(switch_reason)
+            regime["hold_count"] = int(applied_regime_hold_count)
+            active_alpha_model = self.alpha_model
+            active_profile = None
+            if self.regime_model is not None:
+                active_alpha_model, signals, active_profile = self._alpha_for_regime(regime["label"])
+            components = active_alpha_model.component_scores(
+                alpha_history,
                 volumes=volume_history,
                 signals=signals,
             )
-            alpha_scores, alpha_weights = self.alpha_model.ic_weighted_alpha(
+            components = components.reindex(history.columns).fillna(0.0)
+            alpha_scores, alpha_weights = active_alpha_model.ic_weighted_alpha(
                 components,
                 ic_history=signal_ic_history,
                 ic_lookback=int(self.config.get("ic_lookback_rebalances", 26)),
@@ -311,6 +354,14 @@ class BacktestEngine:
                 "executed_turnover": turnover,
                 "turnover_constraint_drag": max(raw_turnover - turnover, 0.0),
                 "cost": total_cost,
+                "regime_label": regime["label"],
+                "regime_raw_label": regime["raw_label"],
+                "regime_score": float(regime["score"]),
+                "regime_prob_risk_on": float(regime["probabilities"].get("risk_on", 0.0)),
+                "regime_prob_neutral": float(regime["probabilities"].get("neutral", 0.0)),
+                "regime_prob_risk_off": float(regime["probabilities"].get("risk_off", 0.0)),
+                "regime_switched": int(bool(regime.get("switched", False))),
+                "regime_hold_count": int(regime.get("hold_count", 0)),
             }
             row.update({f"metric_{k}": float(v) for k, v in metrics.items()})
             row.update({f"metric_{k}": float(v) for k, v in horizon_metrics.items()})
@@ -338,6 +389,8 @@ class BacktestEngine:
                         sum(1 for s in alpha_scores.index if s in beta_map)
                     ) / float(len(alpha_scores)),
                     "signal_ic": signal_ic_now,
+                    "regime": regime,
+                    "regime_profile": active_profile,
                     "portfolio_metrics": metrics,
                     "horizon_metrics": horizon_metrics,
                 }
@@ -381,6 +434,156 @@ class BacktestEngine:
             "rebalance_log": rebalance_log,
             "output_dir": str(out_dir),
         }
+
+    def _build_regime_model(self) -> RuleBasedRegimeModel | None:
+        if not bool(self.config.get("regime_switch_enabled", False)):
+            return None
+        model_type = str(self.config.get("regime_model_type", "rule_v1")).lower()
+        if model_type != "rule_v1":
+            raise ValueError(f"Unsupported regime_model_type '{model_type}'.")
+        return RuleBasedRegimeModel(
+            benchmark_symbol=str(self.config.get("regime_benchmark_symbol", self.config.get("benchmark_symbol", "SPY"))).upper(),
+            risk_symbol=str(self.config.get("regime_risk_symbol", "BTC-USD")).upper(),
+            defensive_symbol=str(self.config.get("regime_defensive_symbol", "GLD")).upper(),
+            short_window=int(self.config.get("regime_short_window", 21)),
+            long_window=int(self.config.get("regime_long_window", 63)),
+            relative_window=int(self.config.get("regime_relative_window", 63)),
+            risk_on_threshold=float(self.config.get("regime_risk_on_threshold", 0.15)),
+            risk_off_threshold=float(self.config.get("regime_risk_off_threshold", -0.15)),
+            temperature=float(self.config.get("regime_temperature", 0.20)),
+        )
+
+    def _detect_regime(self, close_history: pd.DataFrame) -> Dict[str, Any]:
+        if self.regime_model is None:
+            return {
+                "label": "static",
+                "score": 0.0,
+                "probabilities": {"risk_on": 0.0, "neutral": 1.0, "risk_off": 0.0},
+                "diagnostics": {},
+            }
+        d = self.regime_model.detect(close_history)
+        return {
+            "label": d.label,
+            "score": float(d.score),
+            "probabilities": dict(d.probabilities),
+            "diagnostics": dict(d.diagnostics),
+        }
+
+    def _apply_regime_stability(
+        self,
+        raw_regime: Dict[str, Any],
+        current_label: str | None,
+        current_hold_count: int,
+    ) -> tuple[str, bool, str]:
+        raw_label = str(raw_regime.get("label", "static"))
+        if current_label is None:
+            return raw_label, True, "init"
+        if raw_label == current_label:
+            return current_label, False, "same_label"
+
+        min_hold = int(self.config.get("regime_min_hold_rebalances", 2))
+        if current_hold_count < max(0, min_hold):
+            return current_label, False, "min_hold_block"
+
+        probs = raw_regime.get("probabilities", {})
+        margin = 0.0
+        if isinstance(probs, dict) and probs:
+            vals = sorted([float(v) for v in probs.values() if pd.notna(v)], reverse=True)
+            if len(vals) >= 2:
+                margin = float(vals[0] - vals[1])
+            elif len(vals) == 1:
+                margin = float(vals[0])
+        min_margin = float(self.config.get("regime_switch_confidence_buffer", 0.10))
+        if margin < max(0.0, min_margin):
+            return current_label, False, "confidence_block"
+
+        return raw_label, True, "switch"
+
+    def _regime_profile_name(self, label: str) -> str | None:
+        mapping = self.config.get("regime_alpha_profiles", {})
+        if not isinstance(mapping, dict):
+            return None
+        v = mapping.get(label)
+        if v is None:
+            return None
+        out = str(v).strip()
+        return out or None
+
+    def _alpha_for_regime(self, label: str) -> tuple[AlphaModel, list[str], str | None]:
+        profile = self._regime_profile_name(label)
+        if not profile:
+            signals = list(
+                self.config.get("alpha_signals", ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"])
+            )
+            return self.alpha_model, signals, None
+
+        if profile not in self._alpha_model_cache:
+            cfg = apply_alpha_profile(dict(self.config), profile, overwrite=True)
+            self._alpha_model_cache[profile] = AlphaModel.from_config(cfg)
+        model = self._alpha_model_cache[profile]
+        cfg = apply_alpha_profile(dict(self.config), profile, overwrite=True)
+        signals = list(cfg.get("alpha_signals", model.available_signals()))
+        return model, signals, profile
+
+    def _alpha_context_symbols(self) -> list[str]:
+        return self._alpha_context_symbols_from_config(self.config)
+
+    @staticmethod
+    def _alpha_context_symbols_from_config(config: Dict[str, Any]) -> list[str]:
+        out: list[str] = []
+        reg = config.get("alpha_signal_registry", [])
+        if not isinstance(reg, list):
+            return out
+        for spec in reg:
+            if not isinstance(spec, dict):
+                continue
+            if not bool(spec.get("enabled", True)):
+                continue
+            typ = str(spec.get("type", "")).strip().lower()
+            if typ == "btc_gld_corr":
+                risk = str(spec.get("risk_symbol", "BTC-USD")).upper()
+                defensive = str(spec.get("defensive_symbol", "GLD")).upper()
+                if risk:
+                    out.append(risk)
+                if defensive:
+                    out.append(defensive)
+        dedup: list[str] = []
+        seen: set[str] = set()
+        for s in out:
+            if s not in seen:
+                dedup.append(s)
+                seen.add(s)
+        return dedup
+
+    def _regime_context_symbols(self) -> list[str]:
+        if self.regime_model is None:
+            return []
+        out = [
+            str(self.config.get("regime_risk_symbol", "BTC-USD")).upper(),
+            str(self.config.get("regime_defensive_symbol", "GLD")).upper(),
+        ]
+        return [s for s in out if s]
+
+    def _all_context_symbols(self) -> list[str]:
+        symbols = list(self._alpha_context_symbols())
+        symbols.extend(self._regime_context_symbols())
+        mapping = self.config.get("regime_alpha_profiles", {})
+        if isinstance(mapping, dict):
+            for maybe_profile in mapping.values():
+                if maybe_profile is None:
+                    continue
+                profile = str(maybe_profile).strip()
+                if not profile:
+                    continue
+                prof_cfg = apply_alpha_profile(dict(self.config), profile, overwrite=True)
+                symbols.extend(self._alpha_context_symbols_from_config(prof_cfg))
+        dedup: list[str] = []
+        seen: set[str] = set()
+        for s in symbols:
+            if s not in seen:
+                dedup.append(s)
+                seen.add(s)
+        return dedup
 
     def _horizon_metrics(
         self,

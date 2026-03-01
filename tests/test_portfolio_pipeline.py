@@ -86,6 +86,26 @@ def _breakout_strength_frames() -> tuple[pd.DataFrame, pd.DataFrame]:
     return closes, volumes
 
 
+def _btc_gld_corr_frame() -> pd.DataFrame:
+    idx = pd.date_range("2024-01-01", periods=220, freq="D")
+    t = pd.Series(range(len(idx)), index=idx, dtype=float)
+    btc = 100.0 + 0.30 * t
+    gld = 200.0 + 0.05 * t
+    aaa = 50.0 + 0.28 * t   # BTC-like
+    bbb = 80.0 + 0.06 * t   # GLD-like
+    ccc = 60.0 + 0.17 * t   # mixed
+    return pd.DataFrame(
+        {
+            "AAA": aaa,
+            "BBB": bbb,
+            "CCC": ccc,
+            "BTC-USD": btc,
+            "GLD": gld,
+        },
+        index=idx,
+    )
+
+
 def test_alpha_and_risk_model_shapes():
     closes = _price_frame()
     model = AlphaModel()
@@ -324,6 +344,27 @@ def test_flat_volume_breakout_scores_strength_continuously():
     raw = signal.compute(closes, volumes=volumes)
     assert float(raw.loc["STRONG"]) > float(raw.loc["WEAK"])
     assert float(raw.loc["WEAK"]) > 0.0
+
+
+def test_alpha_model_registry_builds_btc_gld_corr_signal():
+    closes = _btc_gld_corr_frame()
+    model = AlphaModel.from_config(
+        {
+            "alpha_signal_registry": [
+                {
+                    "type": "btc_gld_corr",
+                    "name": "btc_gld_corr",
+                    "lookback_window": 60,
+                    "risk_symbol": "BTC-USD",
+                    "defensive_symbol": "GLD",
+                    "flip_sign": True,
+                }
+            ]
+        }
+    )
+    comps = model.component_scores(closes)
+    assert set(comps.columns) == {"btc_gld_corr"}
+    assert float(comps["btc_gld_corr"].abs().sum()) > 0.0
 
 
 def test_alpha_profiles_apply_and_list():

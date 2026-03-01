@@ -80,6 +80,22 @@ DEFAULT_CONFIG = {
     "alpha_weight_smoothing": 0.25,
     "alpha_max_signal_weight": 0.35,
     "ic_ewm_decay": 0.85,
+    # Regime switch settings (optional dynamic alpha/profile routing)
+    "regime_switch_enabled": False,
+    "regime_model_type": "rule_v1",  # rule_v1
+    "regime_benchmark_symbol": "SPY",
+    "regime_risk_symbol": "BTC-USD",
+    "regime_defensive_symbol": "GLD",
+    "regime_short_window": 21,
+    "regime_long_window": 63,
+    "regime_relative_window": 63,
+    "regime_risk_on_threshold": 0.15,
+    "regime_risk_off_threshold": -0.15,
+    "regime_temperature": 0.20,
+    "regime_min_hold_rebalances": 2,          # minimum rebalances before another regime switch
+    "regime_switch_confidence_buffer": 0.10,  # min top-vs-second probability margin to switch
+    # Optional mapping: {"risk_on": "<profile>", "neutral": "<profile>", "risk_off": "<profile>"}
+    "regime_alpha_profiles": {},
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {

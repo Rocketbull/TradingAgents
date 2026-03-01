@@ -40,6 +40,27 @@ ALPHA_PROFILES: Dict[str, Dict[str, Any]] = {
         "ic_weighting_mode": "signed",
         "alpha_corr_penalty": 0.50,
     },
+    "risk_on_crypto_anchor": {
+        "alpha_signal_registry": [
+            {"type": "momentum", "name": "mom_1m", "window": 21},
+            {"type": "momentum", "name": "mom_3m", "window": 63},
+            {"type": "momentum", "name": "mom_6m", "window": 126},
+            {"type": "reversal", "name": "rev_1w", "window": 5},
+            {"type": "low_vol", "name": "low_vol", "window": 60},
+            {
+                "type": "btc_gld_corr",
+                "name": "btc_gld_corr",
+                "lookback_window": 120,
+                "risk_symbol": "BTC-USD",
+                "defensive_symbol": "GLD",
+                "defensive_weight": 1.0,
+                "risk_weight": 1.0,
+                "flip_sign": True,
+            },
+        ],
+        "alpha_signals": ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol", "btc_gld_corr"],
+        "alpha_corr_penalty": 0.35,
+    },
 }
 
 

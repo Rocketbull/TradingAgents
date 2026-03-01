@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--out",
-        default="data/market/sp500_symbols.txt",
+        default="data/universe/sp500/current/sp500_symbols.txt",
         help="Output text file path (one symbol per line).",
     )
     parser.add_argument(
@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--snapshot-dir",
-        default="data/market/universe",
+        default="data/universe/sp500/snapshots",
         help="Directory to also save dated membership snapshots.",
     )
     parser.add_argument(

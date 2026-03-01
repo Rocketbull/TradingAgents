@@ -158,6 +158,46 @@ class FlatVolumeBreakoutAlpha(AlphaSignal):
         return score.reindex(closes.columns).fillna(0.0)
 
 
+@dataclass(frozen=True)
+class BtcGldCorrelationAlpha(AlphaSignal):
+    name: str
+    lookback_window: int = 120
+    risk_symbol: str = "BTC-USD"
+    defensive_symbol: str = "GLD"
+    defensive_weight: float = 1.0
+    risk_weight: float = 1.0
+    flip_sign: bool = True
+
+    @property
+    def lookback(self) -> int:
+        return int(self.lookback_window) + 2
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        risk = str(self.risk_symbol).upper()
+        defensive = str(self.defensive_symbol).upper()
+        cols = [str(c).upper() for c in closes.columns]
+        mapped = dict(zip(cols, closes.columns))
+        if risk not in mapped or defensive not in mapped:
+            return pd.Series(0.0, index=closes.columns)
+
+        c = closes.copy()
+        c.columns = cols
+        if c.shape[0] < self.lookback:
+            return pd.Series(0.0, index=closes.columns)
+
+        ret = c.pct_change()
+        risk_ret = ret[risk]
+        defensive_ret = ret[defensive]
+        corr_risk = ret.rolling(int(self.lookback_window), min_periods=int(self.lookback_window)).corr(risk_ret).iloc[-1]
+        corr_def = ret.rolling(int(self.lookback_window), min_periods=int(self.lookback_window)).corr(defensive_ret).iloc[-1]
+        score = float(self.defensive_weight) * corr_def - float(self.risk_weight) * corr_risk
+        if bool(self.flip_sign):
+            score = -score
+        score = score.drop(labels=[risk, defensive], errors="ignore")
+        score.index = [mapped.get(i, i) for i in score.index]
+        return score.reindex(closes.columns).fillna(0.0)
+
+
 def cross_sectional_zscore(values: pd.Series) -> pd.Series:
     s = pd.to_numeric(values, errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
     std = float(s.std(ddof=0))

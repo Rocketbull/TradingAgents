@@ -18,6 +18,13 @@ If it is empty, the built-in default signal set is used.
 - `downside_vol`: params `name`, `window`
 - `trend`: params `name`, `long_window`, `short_window`
 - `breakout`: params `name`, `window`
+- `btc_gld_corr`: params
+  - `name`, `lookback_window` (default `120`)
+  - `risk_symbol` (default `BTC-USD`)
+  - `defensive_symbol` (default `GLD`)
+  - `defensive_weight` (default `1.0`)
+  - `risk_weight` (default `1.0`)
+  - `flip_sign` (default `true`, preferred from research A/B)
 
 All types support:
 - `enabled` (optional, default `true`)
@@ -58,6 +65,7 @@ You can start from built-in presets:
 - `conservative`
 - `momentum_heavy`
 - `mean_reversion_heavy`
+- `risk_on_crypto_anchor`
 
 Example:
 
@@ -76,6 +84,16 @@ from tradingagents.alpha import list_alpha_profiles, get_alpha_profile
 
 print(list_alpha_profiles())
 print(get_alpha_profile("momentum_heavy"))
+```
+
+Example using the new profile:
+
+```python
+from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.alpha import apply_alpha_profile
+
+config = DEFAULT_CONFIG.copy()
+config = apply_alpha_profile(config, "risk_on_crypto_anchor")
 ```
 
 ## Extending With a New Alpha Type

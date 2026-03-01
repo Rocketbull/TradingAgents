@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timedelta
+from pathlib import Path
+import sys
 from typing import List
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from tradingagents.dataflows.market_data_store import (
     download_history,
@@ -32,6 +38,21 @@ def parse_args() -> argparse.Namespace:
         help="Download all current S&P 500 constituents from Wikipedia.",
     )
     parser.add_argument(
+        "--crypto",
+        action="store_true",
+        help="Download default crypto universe (BTC-USD, ETH-USD).",
+    )
+    parser.add_argument(
+        "--commodities",
+        action="store_true",
+        help="Download default commodity universe (gold, silver, copper futures).",
+    )
+    parser.add_argument(
+        "--symbols-file",
+        default=None,
+        help="Optional text file with one ticker per line.",
+    )
+    parser.add_argument(
         "--years",
         type=int,
         default=5,
@@ -58,6 +79,14 @@ def normalize_symbols(raw_symbols: List[str]) -> List[str]:
     return symbols
 
 
+def load_symbols_file(path: str) -> list[str]:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Symbols file not found: {path}")
+    rows = [line.strip().upper() for line in p.read_text(encoding="utf-8").splitlines()]
+    return normalize_symbols(rows)
+
+
 def main() -> None:
     args = parse_args()
     if args.start_date and args.end_date:
@@ -76,14 +105,21 @@ def main() -> None:
         end_date = end_inclusive.strftime("%Y-%m-%d")
 
     download_end = (end_inclusive + timedelta(days=1)).strftime("%Y-%m-%d")
+    merged = list(args.symbols or [])
     if args.sp500:
-        sp500_symbols = fetch_sp500_symbols()
-        symbols = normalize_symbols((args.symbols or []) + sp500_symbols)
-    else:
-        symbols = normalize_symbols(args.symbols or [])
+        merged.extend(fetch_sp500_symbols())
+    if args.crypto:
+        merged.extend(["BTC-USD", "ETH-USD"])
+    if args.commodities:
+        merged.extend(["GC=F", "SI=F", "HG=F"])
+    if args.symbols_file:
+        merged.extend(load_symbols_file(args.symbols_file))
+    symbols = normalize_symbols(merged)
 
     if not symbols:
-        raise SystemExit("No valid symbols provided. Use --symbols and/or --sp500.")
+        raise SystemExit(
+            "No valid symbols provided. Use --symbols/--symbols-file and/or --sp500/--crypto/--commodities."
+        )
 
     print(
         f"Downloading {len(symbols)} symbols from {start_date} to {end_date} "
