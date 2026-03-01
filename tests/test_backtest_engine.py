@@ -113,6 +113,67 @@ def test_regime_stability_blocks_switch_until_min_hold():
     assert reason == "min_hold_block"
 
 
+def test_resolve_universe_schedule_rebalances_snapshot_asof():
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "universe_source": "sp500_snapshot",
+            "benchmark_symbol": "SPY",
+            "portfolio_universe_size": 50,
+        }
+    )
+    engine = BacktestEngine(config)
+    dates = [pd.Timestamp("2024-05-31"), pd.Timestamp("2024-06-07")]
+    calls: list[str] = []
+
+    def fake_load_symbols(
+        universe_source: str,
+        portfolio_universe: list[str],
+        portfolio_universe_size: int,
+        benchmark_symbol: str,
+        fallback_symbol: str,
+        asof_date: str | None = None,
+    ) -> list[str]:
+        calls.append(str(asof_date))
+        if str(asof_date) < "2024-06-01":
+            return ["SPY", "AAA", "BBB"]
+        return ["SPY", "CCC", "DDD"]
+
+    engine.data_loader.load_symbols = fake_load_symbols  # type: ignore[method-assign]
+    sched = engine._resolve_universe_schedule(dates, fallback_symbol="SPY")
+    assert sched[dates[0]] == ["SPY", "AAA", "BBB"]
+    assert sched[dates[1]] == ["SPY", "CCC", "DDD"]
+    assert calls == ["2024-05-31", "2024-06-07"]
+
+
+def test_engine_prefers_legacy_symbol_and_snapshot_paths(tmp_path: Path):
+    legacy_symbol_file = tmp_path / "legacy_symbols.txt"
+    legacy_symbol_file.write_text("SPY\nAAA\n", encoding="utf-8")
+    legacy_snapshot_dir = tmp_path / "legacy_snapshots"
+    legacy_snapshot_dir.mkdir(parents=True, exist_ok=True)
+
+    cfg = DEFAULT_CONFIG.copy()
+    cfg.update(
+        {
+            "symbol_file": str(tmp_path / "new_symbols_missing.txt"),
+            "universe_snapshot_dir": str(tmp_path / "new_snapshots_missing"),
+        }
+    )
+    engine = BacktestEngine(cfg)
+    resolved_symbol = engine._resolve_path_with_legacy(
+        Path(cfg["symbol_file"]),
+        legacy_path=legacy_symbol_file,
+        expect_dir=False,
+    )
+    resolved_snapshot = engine._resolve_path_with_legacy(
+        Path(cfg["universe_snapshot_dir"]),
+        legacy_path=legacy_snapshot_dir,
+        expect_dir=True,
+    )
+    assert resolved_symbol == legacy_symbol_file
+    assert resolved_snapshot == legacy_snapshot_dir
+
+
 def test_liquidity_selector_prefers_high_dollar_volume():
     idx = pd.date_range("2025-01-01", periods=80, freq="D")
     close = pd.DataFrame(

@@ -34,12 +34,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--symbol-file",
-        default="data/market/sp500_symbols.txt",
+        default="data/universe/sp500/current/sp500_symbols.txt",
         help="Path to symbol list file.",
     )
     parser.add_argument(
         "--snapshot-dir",
-        default="data/market/universe",
+        default="data/universe/sp500/snapshots",
         help="Path to dated SP500 snapshot files (sp500_membership_YYYY-MM-DD.csv).",
     )
     parser.add_argument(

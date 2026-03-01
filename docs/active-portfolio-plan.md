@@ -425,7 +425,7 @@ This section extends the plan with concepts directly aligned with Grinold/Kahn a
 ## 11) Next Execution Steps (Amended)
 Priority 1 (data correctness):
 - Add universe snapshot support:
-  - New input format: `data/market/universe/sp500_membership_YYYY-MM-DD.csv`
+  - New input format: `data/universe/sp500/snapshots/sp500_membership_YYYY-MM-DD.csv`
   - Backtest should resolve the latest snapshot available on each rebalance date.
   - Acceptance: no forward-looking membership in historical windows.
 

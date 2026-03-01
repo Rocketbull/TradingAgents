@@ -33,6 +33,19 @@ class BacktestEngine:
         merged.update(self.config or {})
         self.config = merged
 
+        symbol_file = self._resolve_path_with_legacy(
+            Path(self.config.get("symbol_file", "data/universe/sp500/current/sp500_symbols.txt")),
+            legacy_path=Path("data/market/sp500_symbols.txt"),
+            expect_dir=False,
+        )
+        snapshot_dir = self._resolve_path_with_legacy(
+            Path(self.config.get("universe_snapshot_dir", "data/universe/sp500/snapshots")),
+            legacy_path=Path("data/market/universe"),
+            expect_dir=True,
+        )
+        self.config["symbol_file"] = str(symbol_file)
+        self.config["universe_snapshot_dir"] = str(snapshot_dir)
+
         self.alpha_model = AlphaModel.from_config(self.config)
         self.regime_model = self._build_regime_model()
         self._alpha_model_cache: Dict[str, AlphaModel] = {}
@@ -67,12 +80,8 @@ class BacktestEngine:
         )
         self.data_loader = LocalParquetDataLoader(
             data_root=Path(self.config.get("data_root", "data/market")),
-            symbol_file=Path(
-                self.config.get("symbol_file", "data/universe/sp500/current/sp500_symbols.txt")
-            ),
-            universe_snapshot_dir=Path(
-                self.config.get("universe_snapshot_dir", "data/universe/sp500/snapshots")
-            ),
+            symbol_file=symbol_file,
+            universe_snapshot_dir=snapshot_dir,
         )
 
     def run(
@@ -93,21 +102,41 @@ class BacktestEngine:
             int(self.alpha_model.vol_lookback) + 2,
         ) * 2
         volume_matrix: Optional[pd.DataFrame] = None
+        universe_schedule: dict[pd.Timestamp, list[str]] = {}
 
         if close_prices is None:
-            symbols = self.data_loader.load_symbols(
-                universe_source=str(self.config.get("universe_source", "single_symbol")),
-                portfolio_universe=list(self.config.get("portfolio_universe", [])),
-                portfolio_universe_size=int(self.config.get("portfolio_universe_size", 50)),
-                benchmark_symbol=str(self.config.get("benchmark_symbol", "SPY")),
-                fallback_symbol=fallback_symbol,
-                asof_date=start_date,
-            )
             load_start = (start_dt - timedelta(days=warmup_days)).strftime("%Y-%m-%d")
-            close_prices = self.data_loader.load_close_matrix(symbols, load_start, end_date)
+            calendar_index = self._load_calendar_index(
+                load_start=load_start,
+                end_date=end_date,
+                fallback_symbol=fallback_symbol,
+            )
+            rebalance_dates = [
+                d for d in self._rebalance_dates(calendar_index)
+                if pd.Timestamp(start_dt) <= d <= pd.Timestamp(end_dt)
+            ]
+            if len(rebalance_dates) < 2:
+                raise ValueError("Need at least 2 rebalance dates in backtest window")
+
+            universe_schedule = self._resolve_universe_schedule(
+                rebalance_dates=rebalance_dates,
+                fallback_symbol=fallback_symbol,
+            )
+            symbols_union = sorted(
+                {
+                    s
+                    for syms in universe_schedule.values()
+                    for s in syms
+                    if str(s).strip()
+                }
+            )
+            if len(symbols_union) < 2:
+                raise ValueError("Resolved universe contains fewer than 2 symbols.")
+
+            close_prices = self.data_loader.load_close_matrix(symbols_union, load_start, end_date)
             trading_index = close_prices.index
             try:
-                volume_matrix = self.data_loader.load_volume_matrix(symbols, load_start, end_date)
+                volume_matrix = self.data_loader.load_volume_matrix(symbols_union, load_start, end_date)
             except Exception:
                 volume_matrix = None
             context_symbols = self._all_context_symbols()
@@ -125,6 +154,16 @@ class BacktestEngine:
             close_prices = close_prices.sort_index().copy()
             close_prices = close_prices.loc[close_prices.index <= pd.Timestamp(end_dt)]
             volume_matrix = None
+            rebalance_dates = [
+                d for d in self._rebalance_dates(close_prices.index)
+                if pd.Timestamp(start_dt) <= d <= pd.Timestamp(end_dt)
+            ]
+            if len(rebalance_dates) < 2:
+                raise ValueError("Need at least 2 rebalance dates in backtest window")
+            universe_schedule = {
+                d: [str(c).upper() for c in close_prices.columns]
+                for d in rebalance_dates
+            }
 
         benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
         context_symbols = set(self._all_context_symbols())
@@ -143,6 +182,21 @@ class BacktestEngine:
         )
         if tradable_prices.shape[1] < 2:
             raise ValueError("Need at least 2 tradable symbols after excluding benchmark.")
+        rebalance_dates = [d for d in rebalance_dates if d in tradable_prices.index]
+        if len(rebalance_dates) < 2:
+            raise ValueError("Need at least 2 rebalance dates in backtest window")
+        per_date_universe: dict[pd.Timestamp, list[str]] = {}
+        for d in rebalance_dates:
+            raw = universe_schedule.get(d, [])
+            filtered = [
+                str(s).upper()
+                for s in raw
+                if str(s).upper() in tradable_prices.columns
+            ]
+            if len(filtered) < 2:
+                filtered = list(tradable_prices.columns)
+            per_date_universe[d] = list(dict.fromkeys(filtered))
+
         sector_map, beta_map = build_symbol_maps(
             symbols=list(tradable_prices.columns),
             path=Path(
@@ -154,15 +208,10 @@ class BacktestEngine:
             fetch_missing=bool(self.config.get("fetch_missing_sector_data", False)),
         )
 
-        rebalance_dates = [
-            d for d in self._rebalance_dates(tradable_prices.index)
-            if pd.Timestamp(start_dt) <= d <= pd.Timestamp(end_dt)
-        ]
-        if len(rebalance_dates) < 2:
-            raise ValueError("Need at least 2 rebalance dates in backtest window")
-
         initial_capital = float(self.config.get("initial_capital", self.config.get("portfolio_value", 1_000_000.0)))
-        current_weights = self._equal_weights(tradable_prices.columns)
+        current_weights = {s: 0.0 for s in tradable_prices.columns}
+        init_universe = per_date_universe.get(rebalance_dates[0], list(tradable_prices.columns))
+        current_weights.update(self._equal_weights(init_universe))
         nav = initial_capital
 
         equity_rows: list[dict] = []
@@ -201,23 +250,33 @@ class BacktestEngine:
         for i in range(len(rebalance_dates) - 1):
             rebalance_date = rebalance_dates[i]
             next_date = rebalance_dates[i + 1]
+            universe_today = per_date_universe.get(rebalance_date, list(tradable_prices.columns))
+            today_close_history = tradable_prices.loc[:rebalance_date, universe_today].ffill()
+            today_volume_history = (
+                tradable_volumes.loc[:rebalance_date, universe_today].ffill()
+                if tradable_volumes is not None
+                else None
+            )
             liquid_symbols = self._select_liquid_symbols(
-                close_history=tradable_prices.loc[:rebalance_date],
-                volume_history=(tradable_volumes.loc[:rebalance_date] if tradable_volumes is not None else None),
+                close_history=today_close_history,
+                volume_history=today_volume_history,
                 top_n=int(self.config.get("liquidity_top_n", 100)),
                 lookback_days=int(self.config.get("liquidity_lookback_days", 60)),
                 enabled=bool(self.config.get("dynamic_liquidity_filter", False)),
             )
 
-            history = tradable_prices.loc[:rebalance_date, liquid_symbols]
+            history = today_close_history.loc[:, liquid_symbols].ffill()
+            history = history.dropna(axis=1, thresh=max(2, warmup_rows))
+            history = history.dropna(axis=0, how="any")
+            liquid_symbols = list(history.columns)
             alpha_cols = list(dict.fromkeys(liquid_symbols + [s for s in context_symbols if s in close_prices.columns]))
-            alpha_history = close_prices.loc[:rebalance_date, alpha_cols]
+            alpha_history = close_prices.loc[history.index, alpha_cols].ffill()
             volume_history = (
-                tradable_volumes.loc[:rebalance_date, liquid_symbols]
-                if tradable_volumes is not None
+                today_volume_history.reindex(index=history.index, columns=history.columns).ffill()
+                if today_volume_history is not None
                 else None
             )
-            if history.shape[0] < warmup_rows:
+            if history.shape[1] < 2 or history.shape[0] < warmup_rows:
                 continue
             signals = list(
                 self.config.get("alpha_signals", ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"])
@@ -264,8 +323,8 @@ class BacktestEngine:
             covariance = self.risk_model.covariance(history)
 
             benchmark_weights = self._benchmark_proxy_weights(
-                close_history=tradable_prices.loc[:rebalance_date],
-                volume_history=(tradable_volumes.loc[:rebalance_date] if tradable_volumes is not None else None),
+                close_history=today_close_history,
+                volume_history=today_volume_history,
                 mode=str(self.config.get("benchmark_weight_mode", "liquidity_proxy")),
                 lookback_days=int(self.config.get("benchmark_weight_lookback_days", 60)),
             ).reindex(alpha_scores.index).fillna(0.0)
@@ -434,6 +493,107 @@ class BacktestEngine:
             "rebalance_log": rebalance_log,
             "output_dir": str(out_dir),
         }
+
+    @staticmethod
+    def _resolve_path_with_legacy(path: Path, legacy_path: Path, expect_dir: bool) -> Path:
+        if expect_dir:
+            if path.is_dir():
+                has_snapshot_files = any(path.glob("sp500_membership_*.csv"))
+                if has_snapshot_files:
+                    return path
+                if legacy_path.is_dir() and any(legacy_path.glob("sp500_membership_*.csv")):
+                    return legacy_path
+                return path
+            if legacy_path.is_dir():
+                return legacy_path
+            return path
+
+        if path.exists():
+            return path
+        if legacy_path.exists():
+            return legacy_path
+        return path
+
+    def _load_calendar_index(self, load_start: str, end_date: str, fallback_symbol: str) -> pd.DatetimeIndex:
+        benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
+        candidates = [benchmark_symbol, str(fallback_symbol).upper()]
+        seen: set[str] = set()
+        ordered = []
+        for s in candidates:
+            if s and s not in seen:
+                ordered.append(s)
+                seen.add(s)
+        for symbol in ordered:
+            try:
+                s = self.data_loader.load_symbol_series(
+                    symbol=symbol,
+                    start_date=load_start,
+                    end_date=end_date,
+                    field_candidates=["Adj Close", "Close"],
+                )
+                idx = pd.DatetimeIndex(s.index).sort_values().unique()
+                if len(idx) > 0:
+                    return idx
+            except Exception:
+                continue
+        raise ValueError(
+            f"Unable to build trading calendar from benchmark/fallback symbols: {ordered}"
+        )
+
+    def _resolve_universe_schedule(
+        self,
+        rebalance_dates: list[pd.Timestamp],
+        fallback_symbol: str,
+    ) -> dict[pd.Timestamp, list[str]]:
+        source = str(self.config.get("universe_source", "single_symbol")).lower()
+        benchmark_symbol = str(self.config.get("benchmark_symbol", "SPY")).upper()
+        portfolio_universe = list(self.config.get("portfolio_universe", []))
+        portfolio_universe_size = int(self.config.get("portfolio_universe_size", 50))
+        schedule: dict[pd.Timestamp, list[str]] = {}
+
+        if source != "sp500_snapshot":
+            symbols = self.data_loader.load_symbols(
+                universe_source=source,
+                portfolio_universe=portfolio_universe,
+                portfolio_universe_size=portfolio_universe_size,
+                benchmark_symbol=benchmark_symbol,
+                fallback_symbol=fallback_symbol,
+                asof_date=self.config.get("backtest_start_date"),
+            )
+            for d in rebalance_dates:
+                schedule[d] = list(symbols)
+            return schedule
+
+        for d in rebalance_dates:
+            asof = pd.Timestamp(d).strftime("%Y-%m-%d")
+            try:
+                symbols = self.data_loader.load_symbols(
+                    universe_source=source,
+                    portfolio_universe=portfolio_universe,
+                    portfolio_universe_size=portfolio_universe_size,
+                    benchmark_symbol=benchmark_symbol,
+                    fallback_symbol=fallback_symbol,
+                    asof_date=asof,
+                )
+            except FileNotFoundError:
+                legacy_snapshot_dir = Path("data/market/universe")
+                if self.data_loader.universe_snapshot_dir == legacy_snapshot_dir or not legacy_snapshot_dir.exists():
+                    raise
+                legacy_loader = LocalParquetDataLoader(
+                    data_root=self.data_loader.data_root,
+                    symbol_file=self.data_loader.symbol_file,
+                    universe_snapshot_dir=legacy_snapshot_dir,
+                )
+                symbols = legacy_loader.load_symbols(
+                    universe_source=source,
+                    portfolio_universe=portfolio_universe,
+                    portfolio_universe_size=portfolio_universe_size,
+                    benchmark_symbol=benchmark_symbol,
+                    fallback_symbol=fallback_symbol,
+                    asof_date=asof,
+                )
+            schedule[d] = list(symbols)
+        return schedule
 
     def _build_regime_model(self) -> RuleBasedRegimeModel | None:
         if not bool(self.config.get("regime_switch_enabled", False)):

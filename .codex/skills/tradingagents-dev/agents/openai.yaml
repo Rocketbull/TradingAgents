@@ -1,4 +1,3 @@
 interface:
   display_name: "TradingAgents Dev"
-  short_description: "Repo-specific Python, market-data, and test workflow guidance"
-
+  short_description: "Repo-specific workflow for alpha/portfolio/backtest, repeatable research, and mandatory A/B validation"

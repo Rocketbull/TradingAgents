@@ -137,6 +137,46 @@ class LocalParquetDataLoader:
             field_candidates=["Volume"],
         )
 
+    def load_symbol_series(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        field_candidates: list[str] | None = None,
+    ) -> pd.Series:
+        field_candidates = field_candidates or ["Adj Close", "Close"]
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        symbol_up = str(symbol).upper()
+        symbol_dir = self.data_root / symbol_up
+        if not symbol_dir.exists():
+            raise FileNotFoundError(f"Symbol directory not found for {symbol_up}: {symbol_dir}")
+
+        path = self._pick_parquet(symbol_dir, start_dt, end_dt)
+        if path is None:
+            raise FileNotFoundError(
+                f"No parquet data found for {symbol_up} covering {start_date}..{end_date}"
+            )
+
+        df = pd.read_parquet(path)
+        if "Date" not in df.columns:
+            raise ValueError(f"Unexpected schema for {symbol_up}: missing Date column")
+        col = next((c for c in field_candidates if c in df.columns), None)
+        if col is None:
+            raise ValueError(f"None of requested fields found for {symbol_up}: {field_candidates}")
+
+        s = (
+            df[["Date", col]]
+            .rename(columns={col: symbol_up})
+            .assign(Date=lambda x: pd.to_datetime(x["Date"]))
+            .set_index("Date")[symbol_up]
+            .sort_index()
+        )
+        s = s[(s.index >= pd.Timestamp(start_dt)) & (s.index <= pd.Timestamp(end_dt))]
+        if s.empty:
+            raise ValueError(f"No rows for {symbol_up} in range {start_date}..{end_date}")
+        return s
+
     def load_field_matrix(
         self,
         symbols: Iterable[str],
@@ -179,7 +219,7 @@ class LocalParquetDataLoader:
 
         closes = pd.concat(per_symbol.values(), axis=1, join="outer")
         closes.columns = list(per_symbol.keys())
-        closes = closes.sort_index().ffill().dropna(axis=1, how="any")
+        closes = closes.sort_index().ffill().dropna(axis=1, how="all")
         if closes.shape[1] < 2:
             raise ValueError("Insufficient aligned symbols after parquet load.")
         return closes

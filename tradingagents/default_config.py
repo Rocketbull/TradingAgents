@@ -25,7 +25,7 @@ DEFAULT_CONFIG = {
     "universe_source": "single_symbol",   # single_symbol, config_list, sp500_file, sp500_snapshot
     "portfolio_universe": [],             # Used when universe_source=config_list
     "portfolio_universe_size": 50,        # Used when universe_source=sp500_file
-    "universe_snapshot_dir": "data/market/universe",
+    "universe_snapshot_dir": "data/universe/sp500/snapshots",
     "dynamic_liquidity_filter": False,
     "liquidity_top_n": 100,
     "liquidity_lookback_days": 60,
@@ -49,7 +49,7 @@ DEFAULT_CONFIG = {
     "slippage_bps": 0.0,
     "min_trade_notional": 0.0,
     "data_root": "data/market",
-    "symbol_file": "data/market/sp500_symbols.txt",
+    "symbol_file": "data/universe/sp500/current/sp500_symbols.txt",
     "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
     "fetch_missing_sector_data": True,
     "auto_refresh_sector_cache_on_low_coverage": True,
