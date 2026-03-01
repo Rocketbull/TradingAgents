@@ -33,3 +33,10 @@ This repository is configured for Codex-first development.
 ## Validation Before Handoff
 - Run targeted tests for touched modules.
 - If tests cannot run due to missing external deps/keys, state that clearly.
+
+## Skills
+- `coder`: implement code changes and targeted tests in this repo. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/coder/SKILL.md`)
+- `reviewer`: architecture/design/code-review agent for risk and regression findings. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/reviewer/SKILL.md`)
+- `analyst`: test/backtest results analysis agent for A/B deltas and recommendations. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/analyst/SKILL.md`)
+- `tradingagents-dev`: repo-specific coding workflow skill. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/tradingagents-dev/SKILL.md`)
+- `tradingagents-test-performance-diagnostics`: diagnose pytest performance regressions. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/tradingagents-test-performance-diagnostics/SKILL.md`)
