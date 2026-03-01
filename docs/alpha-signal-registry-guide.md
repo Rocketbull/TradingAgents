@@ -109,3 +109,28 @@ config = apply_alpha_profile(config, "risk_on_crypto_anchor")
   - two registry entries used the same `name`.
 - `Unknown alpha signals` during rebalance:
   - `alpha_signals` includes names not created by `alpha_signal_registry`.
+
+## Signal Lifecycle Policy
+Use this policy before removing signals from the registry.
+
+1. Monitor:
+- Track per-signal behavior from backtest logs:
+  - `signal_ic` (cross-sectional IC by rebalance),
+  - `alpha_weights` (effective allocation share),
+  - per-signal diagnostics from `tools/alpha_signal_audit.py`.
+
+2. Dynamic control first:
+- Prefer IC weighting/gating to reduce weak signals before hard deletion.
+- Keep `ic_gate_*` configurable and default conservative unless A/B confirms benefit.
+
+3. Quarantine rule:
+- If a signal shows persistently negative evidence across multiple windows
+  (for example negative IC-IR and negative realized contribution proxy), move it to a
+  quarantine profile instead of deleting immediately.
+
+4. Remove only after matched A/B:
+- Remove from `alpha_signal_registry` only when matched A/B tests with fixed data/config
+  show stable improvement in key metrics (Sharpe, active IR, drawdown/turnover tradeoff).
+
+5. Re-entry checks:
+- Periodically re-test quarantined/removed signals because regime changes can restore usefulness.

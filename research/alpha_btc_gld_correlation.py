@@ -70,6 +70,12 @@ def parse_args() -> argparse.Namespace:
         help="Portfolio construction for TC/BR/IR diagnostics.",
     )
     parser.add_argument("--top-k", type=int, default=25)
+    parser.add_argument("--ic-gate-lookback", type=int, default=26)
+    parser.add_argument("--ic-gate-min-mean", type=float, default=None)
+    parser.add_argument("--ic-gate-use-abs-mean", action="store_true")
+    parser.add_argument("--ic-gate-min-tstat", type=float, default=None)
+    parser.add_argument("--ic-gate-min-hit-rate", type=float, default=None)
+    parser.add_argument("--ic-gate-min-samples", type=int, default=12)
     parser.add_argument("--out-dir", default="research/output")
     parser.add_argument("--run-tag", default=None, help="Optional deterministic run tag override.")
     parser.add_argument("--save-by-date", action="store_true", help="Persist per-date diagnostics CSV.")
@@ -133,6 +139,12 @@ def main() -> None:
         "forward_days": forward_days,
         "weighting_mode": str(args.weighting_mode),
         "top_k": int(args.top_k),
+        "ic_gate_lookback": int(args.ic_gate_lookback),
+        "ic_gate_min_mean": args.ic_gate_min_mean,
+        "ic_gate_use_abs_mean": bool(args.ic_gate_use_abs_mean),
+        "ic_gate_min_tstat": args.ic_gate_min_tstat,
+        "ic_gate_min_hit_rate": args.ic_gate_min_hit_rate,
+        "ic_gate_min_samples": int(args.ic_gate_min_samples),
     }
     run_manager = ResearchRunManager(
         out_dir=out_dir,
@@ -186,6 +198,12 @@ def main() -> None:
     diagnostics = GrinoldDiagnostics(
         weighting_mode=str(args.weighting_mode),
         top_k=int(args.top_k),
+        ic_gate_lookback=int(args.ic_gate_lookback),
+        ic_gate_min_mean=args.ic_gate_min_mean,
+        ic_gate_use_abs_mean=bool(args.ic_gate_use_abs_mean),
+        ic_gate_min_tstat=args.ic_gate_min_tstat,
+        ic_gate_min_hit_rate=args.ic_gate_min_hit_rate,
+        ic_gate_min_samples=int(args.ic_gate_min_samples),
     )
     summary_rows: list[dict[str, Any]] = []
     by_date_rows: list[pd.DataFrame] = []
