@@ -1,5 +1,8 @@
 # SP500 Snapshot Pipeline
 
+Document type: user workflow guide.
+For the broader portfolio/backtest config workflow, see `docs/guides/backtest-config-workflow.md`.
+
 This project now supports a snapshot-building workflow for `data/universe/sp500/snapshots`.
 
 ## Current Runtime Default

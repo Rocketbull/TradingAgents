@@ -1,5 +1,8 @@
 # TradingAgents Active Portfolio Management Plan (Grinold/Kahn-aligned)
 
+Document type: implementation plan and living status tracker.
+For runnable workflows and config usage, start with `docs/README.md` and `docs/guides/backtest-config-workflow.md`.
+
 ## Summary
 This document defines and tracks the roadmap to extend TradingAgents from a single-ticker categorical signal system (`BUY`/`SELL`/`HOLD`) into a multi-asset active portfolio management system aligned with Grinold/Kahn principles.
 
@@ -11,7 +14,9 @@ The plan includes:
 
 This plan is now used as a living status artifact and includes implemented vs pending scope.
 
-## Status Snapshot (as of 2026-03-01)
+As of 2026-03-21, the active portfolio system is no longer just an extension concept. The validated runtime is now the local-data, alpha, portfolio, regime, and backtest stack. The legacy TradingAgents debate/LLM graph remains in the repository, but it is not the primary execution path for active portfolio research. In practice, the broad legacy TradingAgents stack is mainly still useful for data-access and vendor-facing utilities, while portfolio construction and backtesting now live in a separate, more quant-oriented path.
+
+## Status Snapshot (as of 2026-03-21)
 Completed:
 - Multi-asset backtest pipeline with rebalance simulation:
   - `tradingagents/backtest/engine.py`
@@ -27,7 +32,7 @@ Completed:
   - `tradingagents/alpha/model.py`
   - `tradingagents/alpha/signals.py`
   - `tradingagents/alpha/profiles.py`
-  - `docs/alpha-signal-registry-guide.md`
+  - `docs/guides/alpha-signal-registry-guide.md`
 - Grinold diagnostics and horizon metrics in backtest output:
   - IC / breadth proxy / TC proxy / implied IR / realized active IR
   - horizon IC/spread/hit metrics
@@ -41,8 +46,10 @@ Completed:
   - `research/alpha_alphalens_adapter.py`
   - `research/alpha_alphalens_tearsheet.py`
   - `notebooks/research_run_viewer.ipynb`
-  - `docs/alpha-flat-volume-breakout-research-workflow.md`
-  - `docs/alphalens-research-workflow.md`
+  - `docs/guides/alpha-flat-volume-breakout-research-workflow.md`
+  - `docs/guides/alphalens-research-workflow.md`
+- Repo-tracked full backtest baseline config:
+  - `research/configs/backtest_current_baseline.json`
 - Benchmark-relative construction baseline and TC plumbing improvements:
   - Benchmark proxy weights integrated into backtest rebalance loop.
   - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.
@@ -56,15 +63,36 @@ Completed:
   - Transition controls:
     - minimum-hold and confidence-buffer gating before regime switches.
     - raw vs applied regime labels logged for auditability.
+- Portfolio/backtest runtime is the current validated product path:
+  - Primary execution flow is `tools/run_backtest.py` -> `tradingagents/backtest/engine.py`.
+  - Portfolio behavior is covered by:
+    - `tests/test_portfolio_pipeline.py`
+    - `tests/test_backtest_engine.py`
+    - `tests/test_regime_model.py`
+- Shared data workflow is established:
+  - Market history download/store lives under:
+    - `tools/download_market_data.py`
+    - `tradingagents/dataflows/market_data_store.py`
+  - Snapshot-aware universe loading lives under:
+    - `tradingagents/backtest/data_loader.py`
+    - `tools/build_sp500_snapshots.py`
 
 Partially completed:
 - Optimizer backend/fallback policy exists, but deterministic relaxation order is still basic.
 - Risk model exists (shrunk covariance), but no factor exposure model yet.
+- Snapshot-aware universe support exists, but date-aware runtime is still default-off and historical membership quality depends on the snapshot/event inputs.
+- A/B and reproducibility tooling exists, but batch walk-forward and stress-grid orchestration are not yet first-class.
+- Architectural separation is not yet clean:
+  - active portfolio modules and legacy TradingAgents graph still share one top-level package and one repo narrative.
 
 Not completed:
-- Historical universe snapshots (anti-survivorship policy).
-- Sector constraints and active risk budgets in optimizer.
+- Production-grade historical universe snapshots (anti-survivorship policy).
+- Official benchmark constituent/weight integration for benchmark-relative construction.
+- Factor-risk model path and richer active risk budgets in optimizer.
 - Walk-forward and stress grid orchestration.
+- Clean module boundary between:
+  - active alpha/portfolio/backtest code, and
+  - legacy TradingAgents graph/agents/LLM workflow.
 
 ## Practical Readiness Gap Assessment (as of 2026-02-28)
 This section captures where the current implementation is still below practical active-management standards.
@@ -107,23 +135,37 @@ Initial quality ratings (for planning only):
 
 ## 2) Current-State Findings (with file references)
 
-### Single-asset state and flow
-- State initialization currently assumes one `company_of_interest` and one `trade_date` per run:
+### Primary runtime in use today
+- The active portfolio workflow now runs through:
+  - `tools/run_backtest.py`
+  - `tradingagents/backtest/engine.py`
+  - `tradingagents/alpha/model.py`
+  - `tradingagents/portfolio/optimizer.py`
+  - `tradingagents/portfolio/rebalance.py`
+  - `tradingagents/portfolio/attribution.py`
+- This is the path exercised by the main portfolio/backtest tests.
+
+### Legacy TradingAgents graph is no longer the portfolio centerline
+- `tradingagents/graph/trading_graph.py` still contains a `portfolio_mode`, but that path is not the validated research/backtest runtime.
+- The graph/state stack remains largely debate/report-centric:
   - `tradingagents/graph/propagation.py`
-- Core state schema is report-centric and debate-centric, not portfolio-centric:
   - `tradingagents/agents/utils/agent_states.py`
-
-### Decision extraction is categorical only
-- Signal post-processing explicitly extracts only one of `BUY`, `SELL`, `HOLD`:
   - `tradingagents/graph/signal_processing.py`
+- For planning purposes, graph integration is now a compatibility concern, not the main delivery path.
 
-### No optimizer/risk-model layer
-- Current orchestration builds analyst/research/risk debate nodes and produces final textual decision, but has no portfolio optimizer, risk model, or order generation layer:
-  - `tradingagents/graph/trading_graph.py`
+### Shared data layer remains useful
+- The repo still benefits from shared market-data tooling under:
+  - `tradingagents/dataflows/`
+  - `tools/download_market_data.py`
+  - `tradingagents/dataflows/market_data_store.py`
+- This is the main area where the broader TradingAgents codebase still contributes directly to the active portfolio system today.
 
-### Existing strengths
-- Multi-agent research and risk debate pipeline already exists and is modular.
-- `backtrader` is already a dependency and can support execution/backtest simulation.
+### Current architectural mismatch
+- Documentation and package narrative still over-emphasize the legacy graph/LLM workflow even though active portfolio work now centers on deterministic local-data backtests.
+- Result: repo structure and public story lag behind actual implementation.
+- Config promotion paths also need to stay explicit:
+  - alpha-only promotion via `tradingagents/alpha/profiles.py`
+  - full backtest baseline promotion via repo-tracked JSON under `research/configs/`
 
 ## 3) Research: Candidate Open-Source Baselines
 
@@ -185,10 +227,10 @@ Initial quality ratings (for planning only):
   - optional adapters for `cvxportfolio` and `qlib`.
 
 ## 4) Target Architecture (Decision-Complete)
-Introduce a portfolio construction pipeline after analyst/research signals:
+The active portfolio target architecture should now be treated as a standalone quant pipeline with optional adapters, not as a mandatory downstream stage of the legacy analyst/research graph.
 
 1. Alpha scoring layer:
-- Convert agent outputs into expected active returns per symbol.
+- Convert market data and configured signal definitions into expected active returns per symbol.
 - Output: `alpha_scores: Dict[str, float]`.
 
 2. Risk model layer:
@@ -210,6 +252,51 @@ Introduce a portfolio construction pipeline after analyst/research signals:
 5. Attribution and monitoring:
 - Track IC, breadth proxy, transfer coefficient proxy, and realized IR by rebalance date.
 
+### 4.1 Recommended Code Boundary
+Recommended structural split inside the repo:
+
+1. Shared data module:
+- `tradingagents/dataflows/`
+- responsibility:
+  - vendor access,
+  - market history download/store,
+  - classification metadata,
+  - deterministic local file layout.
+
+2. Active portfolio module:
+- `tradingagents/alpha/`
+- `tradingagents/portfolio/`
+- `tradingagents/backtest/`
+- `tradingagents/regime/`
+- responsibility:
+  - signal generation,
+  - risk modeling,
+  - optimization,
+  - rebalancing,
+  - attribution,
+  - evaluation.
+
+3. Legacy TradingAgents module:
+- `tradingagents/graph/`
+- `tradingagents/agents/`
+- `tradingagents/llm_clients/`
+- `cli/`
+- responsibility:
+  - debate-driven single-name workflows,
+  - LLM orchestration,
+  - interactive UX.
+
+### 4.2 Separation Recommendation
+Recommended next architectural move:
+
+- First, create a cleaner internal module boundary while keeping one repository.
+- Only consider a separate package or repository after the active portfolio API stabilizes and consumers are clear.
+
+Reasoning:
+- The active portfolio code already behaves like a separate product surface.
+- Forcing more work through `TradingAgentsGraph` would add coupling without improving the tested path.
+- A staged internal split is lower-risk than an immediate repo/package extraction.
+
 ## 5) Phased Implementation Plan
 
 ## Phase 0: Data + Universe foundation (Partially complete)
@@ -227,7 +314,8 @@ Gate:
 
 ## Phase 1: Multi-asset state extension (Partially complete)
 Objectives:
-- Extend graph state from single-asset outputs to portfolio-level artifacts.
+- Maintain only the minimum compatibility state needed for any graph-based or package-based callers.
+- Do not treat graph-state expansion as a prerequisite for portfolio/backtest progress.
 
 Add state keys:
 - `universe`
@@ -238,7 +326,7 @@ Add state keys:
 
 Gate:
 - End-to-end run returns portfolio state object for a test universe.
-- Remaining gap: state typing in `tradingagents/agents/utils/agent_states.py` is not fully portfolio-first.
+- Remaining gap: state typing in `tradingagents/agents/utils/agent_states.py` is not fully portfolio-first, but this is now secondary unless the graph path becomes a real supported runtime.
 
 ## Phase 2: Optimizer integration (Complete for baseline)
 Objectives:
@@ -289,10 +377,26 @@ Deliverables:
 Gate:
 - Stable repeated runs with deterministic outputs under fixed seed and input data.
 
-## 6) Important Planned Interface/API Additions
+## Phase 6: Module boundary cleanup (New)
+Objectives:
+- Reduce coupling between active portfolio code and the legacy TradingAgents graph/runtime.
+- Make the active portfolio stack the explicit primary surface for research and backtesting.
+
+Deliverables:
+- Define and document the supported active portfolio entrypoints.
+- Separate shared data utilities from legacy graph-only code paths.
+- Stop requiring portfolio roadmap items to flow through `TradingAgentsGraph`.
+- Add a migration note for any remaining portfolio-related graph APIs.
+
+Gate:
+- A new contributor can identify the active portfolio runtime without reading legacy graph code first.
+- README and plan agree on which module path is primary.
+- Legacy graph remains optional and does not block portfolio enhancements.
+
+## 6) Interface/API Status
 
 ### Config additions in `tradingagents/default_config.py`
-Planned new keys:
+Implemented baseline keys:
 - `portfolio_mode`
 - `benchmark_symbol`
 - `universe_source`
@@ -302,21 +406,41 @@ Planned new keys:
 - `turnover_limit`
 - `risk_aversion`
 - `transaction_cost_bps`
+- Additional implemented controls now include:
+  - `active_weight_cap`
+  - `sector_active_weight_cap`
+  - `tracking_error_target`
+  - `snapshot_schedule_enabled`
+  - regime-routing settings
+
+Remaining interface work:
+- add explicit `risk_model_type = covariance|factor`
+- clarify which config keys belong to:
+  - shared data layer,
+  - active portfolio layer,
+  - legacy graph layer
 
 ### State additions in `tradingagents/agents/utils/agent_states.py`
-Portfolio-level fields planned from Phase 1:
+Implemented baseline portfolio fields:
 - `universe`
 - `alpha_scores`
 - `target_weights`
 - `current_weights`
 - `rebalance_orders`
 
-### New planned modules
+Status:
+- these fields exist,
+- but they are not the primary integration surface for current backtest work,
+- and should be treated as compatibility-state fields unless the graph path is revived as a first-class runtime.
+
+### Core active portfolio modules now implemented
 - `tradingagents/alpha/model.py`
 - `tradingagents/portfolio/risk_model.py`
 - `tradingagents/portfolio/optimizer.py`
 - `tradingagents/portfolio/rebalance.py`
 - `tradingagents/portfolio/attribution.py`
+- `tradingagents/backtest/engine.py`
+- `tradingagents/regime/model.py`
 
 Design requirement:
 - Keep these modules decoupled behind narrow interfaces to allow optimizer backend swaps.
@@ -366,7 +490,7 @@ Mitigation:
 
 ### Signal-to-weight instability
 Risk:
-- LLM-derived alpha scores can be noisy and unstable.
+- Alpha scores can be noisy and unstable, whether sourced from deterministic signals, regime routing, or any future model-based forecast layer.
 Mitigation:
 - Apply score normalization, clipping, and turnover regularization; monitor IC decay.
 
@@ -381,6 +505,7 @@ Mitigation:
 - [ ] Confirm deterministic data snapshot policy for universe and prices.
 - [ ] Confirm fallback policy for optimizer infeasibility (baseline exists; relaxation policy to formalize).
 - [x] Confirm reporting schema for diagnostics and rebalance logs.
+- [ ] Confirm active portfolio module boundary and whether to keep separation internal-to-repo or promote it to a standalone package later.
 
 ## 10) Active Portfolio Management Enhancements (New)
 
@@ -427,11 +552,25 @@ This section extends the plan with concepts directly aligned with Grinold/Kahn a
   - add Fundamental Law summary and horizon diagnostic aggregates.
 - `tradingagents/portfolio/optimizer.py`
   - optionally emit pre-constraint and post-constraint targets.
-- `notebooks/demo_backtest_viewer.ipynb`
+- `notebooks/single_backtest_viewer.ipynb`
+- `notebooks/ab_backtest_viewer.ipynb`
   - add visualizations for new diagnostic columns.
 
 ## 11) Next Execution Steps (Amended)
-Priority 1 (data correctness):
+Priority 1 (architecture cleanup):
+- Treat active portfolio/backtest as the primary module path.
+- Update docs and code organization to reflect:
+  - shared data layer,
+  - active alpha/portfolio/backtest layer,
+  - legacy TradingAgents graph layer.
+- Strong recommendation:
+  - do an internal module split first,
+  - defer any separate package/repo extraction until the active portfolio API is stable.
+- Acceptance:
+  - plan, README, and entrypoints all identify the same primary runtime,
+  - future portfolio enhancements no longer depend on graph-state integration.
+
+Priority 2 (data correctness):
 - Add universe snapshot support:
   - New input format: `data/universe/sp500/snapshots/sp500_membership_YYYY-MM-DD.csv`
   - Backtest can resolve snapshot per rebalance date (`snapshot_schedule_enabled=True`).
@@ -439,7 +578,7 @@ Priority 1 (data correctness):
   - Added snapshot build pipeline: `tools/build_sp500_snapshots.py`.
   - Acceptance: no forward-looking membership in historical windows.
 
-Priority 2 (optimizer realism):
+Priority 3 (optimizer realism):
 - Add sector and benchmark-relative constraints:
   - In optimizer: sector cap enforcement and active weight cap vs benchmark.
   - Extend config with explicit `active_weight_cap` and optional `tracking_error_target`.
@@ -452,13 +591,13 @@ Priority 2 (optimizer realism):
   - Baseline implementation added (`active_weight_cap`, optional `tracking_error_target`, benchmark proxy weights).
   - Remaining work: integrate official benchmark constituent weights and validate TE target calibration policy.
 
-Priority 3 (risk model depth):
+Priority 4 (risk model depth):
 - Add optional factor risk model path:
   - Estimate simple market/beta and sector exposures.
   - Expose factor covariance + specific risk estimates.
   - Acceptance: optimizer can run in `risk_model_type = covariance|factor`.
 
-Priority 4 (hardening and research loop):
+Priority 5 (hardening and research loop):
 - Add walk-forward runner + stress matrix:
   - Vary transaction costs, turnover limits, universe size, and rebalance frequency.
   - Persist comparable run manifests and aggregate report.
@@ -475,16 +614,12 @@ Priority 4 (hardening and research loop):
     - add batch walk-forward/stress orchestrator,
     - produce consolidated multi-run comparison table.
 
-Priority 5 (portfolio state integration):
-- Complete portfolio-first state schema in `agent_states.py` and graph pipeline.
-- Acceptance: portfolio graph run emits typed `alpha_scores`, `target_weights`, and `rebalance_orders`.
-
 Priority 6 (attribution correctness):
 - Replace TC proxy with pre/post-constraint active-weight TC:
   - Persist unconstrained active weights and constrained active weights per rebalance.
   - Compute TC from their correlation and compare with current proxy.
   - Acceptance: attribution report includes both legacy proxy and corrected TC during transition.
-- Status update:
+  - Status update:
   - Backtest now passes unconstrained/constrained active weights into attribution diagnostics.
   - Remaining work: expose corrected TC explicitly in notebook dashboards as primary metric.
 
@@ -508,6 +643,14 @@ Priority 7 (regime adaptation):
   - Acceptance:
     - saved delta table with performance and turnover metrics by subperiod.
     - paired A/B artifacts discoverable by notebook without manual path edits.
+
+Priority 8 (legacy compatibility, only if needed):
+- If there is a real user for graph-based portfolio mode, reduce it to a thin adapter over the active portfolio engine.
+- Do not build new portfolio features directly into `TradingAgentsGraph` unless there is a specific consuming workflow that requires it.
+- Acceptance:
+  - graph path either:
+    - delegates cleanly to the active portfolio engine, or
+    - is explicitly documented as experimental/legacy.
 
 ## 12) Deferred TODOs (Framework Stage)
 These are intentionally deferred while the project prioritizes framework completeness over alpha quality.
@@ -557,9 +700,9 @@ These are intentionally deferred while the project prioritizes framework complet
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.
   - High-quality stable IC is not yet expected; hard gating now may hide integration issues.
 
-## 13) Review of `docs/suggestions.md` + Plan Refinement (2026-03-01)
+## 13) Review of `docs/reference/suggestions.md` + Plan Refinement (2026-03-01)
 
-This section reviews the external suggestions in `docs/suggestions.md` and maps them to actionable updates for this repository.
+This section reviews the external suggestions in `docs/reference/suggestions.md` and maps them to actionable updates for this repository.
 
 ### Strong ideas worth keeping
 - Process-first framing from the Fundamental Law (`IR = IC * sqrt(BR) * TC`) is directionally correct and aligns with current diagnostics.
@@ -619,6 +762,6 @@ Priority E (validation protocol tightening):
   - consolidated multi-run comparison table with reproducible manifests.
 
 ## Assumptions and Defaults Chosen
-- Save location: `docs/active-portfolio-plan.md`.
+- Save location: `docs/plans/active-portfolio-plan.md`.
 - First implementation stack: PyPortfolioOpt baseline, with extension points for Riskfolio-Lib/cvxportfolio later.
 - Initial operating mode: long-only active weights versus benchmark, weekly rebalance, constrained turnover.

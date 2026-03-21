@@ -1,5 +1,8 @@
 # Flat-Volume Breakout Research Workflow
 
+Document type: user workflow guide.
+For the larger implementation roadmap, see `docs/plans/active-portfolio-plan.md`.
+
 This research runner now supports Grinold-style diagnostics and reproducible runs.
 
 ## Run with frozen config

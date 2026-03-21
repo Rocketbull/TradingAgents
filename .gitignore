@@ -166,6 +166,10 @@ data/*
 eval_results/*
 !eval_results/.gitkeep
 
+# Local temp artifacts – keep folder by tracking the placeholder
+tmp/*
+!tmp/.gitkeep
+
 # Spyder project settings
 .spyderproject
 .spyproject

@@ -1,5 +1,8 @@
 # Alphalens Research Workflow
 
+Document type: user workflow guide.
+For the larger implementation roadmap, see `docs/plans/active-portfolio-plan.md`.
+
 This project now includes an Alphalens adapter to validate individual factors using the same local data and profile setup used by TradingAgents research scripts.
 
 ## 1) Run Adapter for One Factor
@@ -38,6 +41,13 @@ Optional interactive display:
   --factor-data research/output/alphalens_mom3m_sample/factor_data.parquet \
   --show
 ```
+
+Notebook alternative:
+
+- Open `notebooks/alphalens_tearsheet_viewer.ipynb`.
+- Select a run directory containing `factor_data.parquet`.
+- Render return/information/turnover tear sheets inline.
+- Optional: export PNG files from the notebook into `tearsheet_png_notebook/`.
 
 ## Notes
 

@@ -1,5 +1,8 @@
 # Alpha Signal Registry Guide
 
+Document type: user workflow guide.
+For full backtest-baseline promotion and config-file workflow, see `docs/guides/backtest-config-workflow.md`.
+
 ## Purpose
 Use `alpha_signal_registry` to define alpha signals from config instead of editing Python code.
 
@@ -104,6 +107,11 @@ You can start from built-in presets:
 - `risk_on_crypto_anchor`
 - `diversified_sp500_v1`
 
+This is the alpha-only promotion layer.
+If you want to promote a full backtest setup instead of just the signal mix, see:
+
+- `docs/guides/backtest-config-workflow.md`
+
 Example:
 
 ```python
@@ -133,6 +141,23 @@ config = DEFAULT_CONFIG.copy()
 config = apply_alpha_profile(config, "diversified_sp500_v1")
 ```
 
+## Backtest Config Files
+For full engine/backtest promotion, use repo-tracked JSON config files and run:
+
+```bash
+.conda/tradingagents/bin/python tools/run_backtest.py \
+  --config-json research/configs/backtest_current_baseline.json
+```
+
+`--config-json` is the full backtest promotion layer:
+- alpha profile/registry
+- universe and snapshot settings
+- liquidity filter
+- rebalance cadence
+- optimizer/risk constraints
+
+CLI flags still override the JSON file when you need one-off changes.
+
 ## Research Script (SP500)
 Use the profile research runner to evaluate per-factor and composite diagnostics on SP500 universe snapshots:
 
@@ -157,7 +182,7 @@ Then render tearsheet figures:
   --out-dir research/output/<run_tag>/tearsheet_png
 ```
 
-See also: `docs/alphalens-research-workflow.md`.
+See also: `docs/guides/alphalens-research-workflow.md`.
 
 ## Extending With a New Alpha Type
 1. Add a new `AlphaSignal` subclass in `tradingagents/alpha/signals.py`.

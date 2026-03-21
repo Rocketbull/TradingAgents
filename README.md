@@ -158,6 +158,19 @@ An interface will appear showing results as they load, letting you track the age
   <img src="assets/cli/cli_transaction.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
+## Documentation
+
+The repository now has two different documentation tracks:
+
+- User guides and workflows:
+  - [docs/README.md](docs/README.md)
+  - [docs/guides/backtest-config-workflow.md](docs/guides/backtest-config-workflow.md)
+  - [docs/guides/alpha-signal-registry-guide.md](docs/guides/alpha-signal-registry-guide.md)
+- Project planning and implementation status:
+  - [docs/plans/active-portfolio-plan.md](docs/plans/active-portfolio-plan.md)
+
+Use the docs index first if you are unsure whether you need a runbook or a roadmap/status document.
+
 ## TradingAgents Package
 
 ### Implementation Details
