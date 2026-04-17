@@ -1,25 +1,24 @@
 ---
 name: coder
-description: Implement code changes in TradingAgents. Use when writing or modifying code, adding tests, fixing bugs, and executing targeted validation runs in this repository.
+description: Implement TradingAgents code changes, tests, fixes, dataflow work, safe Python refactors, and targeted validation while using project memory for repo-specific context.
 ---
 
 # Coder
 
-## Workflow
-1. Inspect impacted files and preserve existing architecture boundaries.
-2. Implement minimal local changes with clear error handling.
-3. Add or update targeted tests for touched behavior.
-4. Run focused test commands using repo env binaries.
-5. Report exact commands and outcomes.
+Use this skill for implementation tasks in this repository. Keep this file focused on execution behavior; durable repo context lives in `memory/`.
 
-## Repo Commands
-- Install deps: `.conda/tradingagents/bin/pip install -r requirements.txt`
-- Run one test file: `.conda/tradingagents/bin/python -m pytest -q tests/test_backtest_engine.py`
-- Run focused pair: `.conda/tradingagents/bin/python -m pytest -q tests/test_portfolio_pipeline.py tests/test_backtest_engine.py`
-- Run CLI: `.conda/tradingagents/bin/python -m cli.main`
+## Workflow
+1. Read `memory/INDEX.md`, then only the memory files relevant to the task.
+2. State the smallest behavior or interface that must change.
+3. Inspect the existing implementation before designing new code.
+4. Implement the smallest local change that preserves module boundaries.
+5. Add or update targeted tests for touched behavior.
+6. Run focused validation using `.conda/tradingagents/bin/python`.
+7. Report exact commands and outcomes.
+8. If the task produced a durable lesson, run `scripts/reflect.py`, then run `scripts/memory_guard.py`.
 
 ## Guardrails
-- Keep changes incremental and avoid broad refactors unless requested.
-- Do not add dependencies unless required.
-- Keep market data output paths deterministic under `data/market/`.
-- Use `rg` for search.
+- Follow `memory/ENGINEERING_PRINCIPLES.md` before adding abstractions or dependencies.
+- Use `memory/ARCHITECTURE.md` for module boundaries and data/I/O rules.
+- Use `memory/WORKFLOWS.md` for repo commands, validation, and A/B expectations.
+- Do not duplicate durable project facts here; update `memory/` instead.

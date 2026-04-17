@@ -23,7 +23,7 @@ description: Analyze TradingAgents test and backtest results. Use for pytest tim
 
 ## Useful Commands
 - Pytest durations: `.conda/tradingagents/bin/python -m pytest -q --durations=25`
-- Parse latest A/B comparison quickly via `python - <<'PY' ...` and JSON.
+- Parse latest A/B comparison quickly via `.conda/tradingagents/bin/python - <<'PY' ...` and JSON.
 
 ## Reporting Rules
 - Report numeric deltas with signs.

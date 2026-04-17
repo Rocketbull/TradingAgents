@@ -1,42 +1,49 @@
-# TradingAgents Codex Guide
+# TradingAgents Agent Guide
 
-This repository is configured for Codex-first development.
+This file is operating guidance for agents. Durable project knowledge lives in `memory/`.
 
-## Scope
-- Prefer changes that are local and incremental.
-- Preserve existing architecture and module boundaries.
-- Do not add new dependencies unless required.
+## Start Here
+- Read `memory/INDEX.md` first.
+- Then read only the memory files relevant to the task.
+- Use `.codex/skills/` when a task clearly matches a skill.
+- Keep changes local, incremental, and consistent with existing module boundaries.
+
+## First-Principles Workflow
+Before changing code:
+1. State the actual user outcome.
+2. Identify the smallest behavior or interface that must change.
+3. Inspect the existing implementation before designing anything new.
+4. Prefer existing modules, helpers, and patterns.
+5. Add abstraction only when current duplication or complexity proves it is needed.
+6. Verify with the narrowest meaningful test.
+
+## Overengineering Guard
+Default to the smallest working change.
+
+Before introducing a new abstraction, name:
+- the repeated concrete problem,
+- the existing simpler alternative,
+- why the simpler alternative is insufficient,
+- the tests or call sites that prove the abstraction is useful.
+
+If those cannot be named, do not add the abstraction.
+
+Do not add frameworks, registries, plugin systems, config layers, generic adapters, or new dependencies unless the current task cannot be solved cleanly without them.
 
 ## Environment
-- Python: `>=3.10` (see `pyproject.toml`)
-- Use project env binaries directly from `.conda/tradingagents/bin/`.
-- Install deps: `.conda/tradingagents/bin/pip install -r requirements.txt`
-- Optional editable install: `.conda/tradingagents/bin/pip install -e .`
+- Use project env binaries from `.conda/tradingagents/bin/`.
+- Use `.conda/tradingagents/bin/python` for Python and pytest commands.
+- Use `.conda/tradingagents/bin/pip` for dependency commands.
+- Do not add dependencies unless required.
 
-## Common Commands
-- Run CLI: `.conda/tradingagents/bin/python -m cli.main`
-- Run quick script: `.conda/tradingagents/bin/python main.py`
-- Run tests: `.conda/tradingagents/bin/python -m pytest -q`
-- Run one test: `.conda/tradingagents/bin/python -m pytest -q tests/test_y_finance_history.py`
+## Validation
+- Run targeted tests for touched behavior.
+- Broaden validation when shared behavior, dataflow contracts, or portfolio/backtest outputs can change.
+- If validation cannot run because of missing data, network, dependencies, or keys, state that clearly.
+- Do not fabricate command, test, or backtest results.
 
-## Code Standards
-- Keep functions small and focused.
-- Prefer explicit errors over silent fallbacks.
-- Add type hints on new/modified public functions.
-- Use `rg` for searches; avoid slower recursive grep where possible.
-
-## Data & I/O Rules
-- Market data output belongs under `data/market/`.
-- Keep `data/` contents out of git except placeholders/metadata.
-- For new downloader behavior, maintain deterministic output paths.
-
-## Validation Before Handoff
-- Run targeted tests for touched modules.
-- If tests cannot run due to missing external deps/keys, state that clearly.
-
-## Skills
-- `coder`: implement code changes and targeted tests in this repo. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/coder/SKILL.md`)
-- `reviewer`: architecture/design/code-review agent for risk and regression findings. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/reviewer/SKILL.md`)
-- `analyst`: test/backtest results analysis agent for A/B deltas and recommendations. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/analyst/SKILL.md`)
-- `tradingagents-dev`: repo-specific coding workflow skill. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/tradingagents-dev/SKILL.md`)
-- `tradingagents-test-performance-diagnostics`: diagnose pytest performance regressions. (file: `/home/rockebull/proj/TradingAgents/.codex/skills/tradingagents-test-performance-diagnostics/SKILL.md`)
+## Memory Updates
+- Add project memory only when it is likely to help future work.
+- Prefer updating an existing file in `memory/` over adding a new file.
+- Use `scripts/reflect.py` for short lessons from completed work.
+- Run `scripts/memory_guard.py` after memory changes.
