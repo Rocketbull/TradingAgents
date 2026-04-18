@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "activeportfolio"
+version = "0.2.0"
+description = "Active portfolio management research, market data, and backtesting toolkit"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "alphalens-reloaded>=0.4.6",
+    "pandas>=2.3.0,<3.0",
+    "pyarrow>=21.0.0",
+    "pytz>=2025.2",
+    "requests>=2.32.4",
+    "PyPortfolioOpt>=1.5.6",
+    "setuptools>=80.9.0",
+    "stockstats>=0.6.5",
+    "tqdm>=4.67.1",
+    "typing-extensions>=4.14.0",
+    "xlrd>=2.0.1",
+    "yfinance>=0.2.63",
+]
+
+[tool.setuptools.packages.find]
+include = ["activeportfolio*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

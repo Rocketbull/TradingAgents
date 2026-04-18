@@ -1,0 +1,21 @@
+{
+  "start_date": "2022-01-03",
+  "end_date": "2026-02-28",
+  "universe_source": "sp500_snapshot",
+  "universe_size": 500,
+  "symbol_file": "data/universe/sp500/current/sp500_symbols.txt",
+  "snapshot_dir": "data/universe/sp500/snapshots",
+  "data_root": "data/market",
+  "benchmark_symbol": "SPY",
+  "fallback_symbol": "SPY",
+  "snapshot_schedule_enabled": true,
+  "signal_return_mode": "trailing",
+  "signal_lookback_days": 252,
+  "outer_n": 50,
+  "skip_n": 0,
+  "comparison_specs": "60:10,70:20,80:30",
+  "forward_days": "1,5,20",
+  "transaction_cost_bps": 5.0,
+  "out_dir": "research/output",
+  "save_selections": true
+}

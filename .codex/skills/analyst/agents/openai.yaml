@@ -1,0 +1,3 @@
+interface:
+  display_name: "Analyst"
+  short_description: "Analyze test and backtest results with deltas"

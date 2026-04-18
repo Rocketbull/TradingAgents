@@ -1,0 +1,3 @@
+interface:
+  display_name: "Reviewer"
+  short_description: "Review design, architecture, and code risks"

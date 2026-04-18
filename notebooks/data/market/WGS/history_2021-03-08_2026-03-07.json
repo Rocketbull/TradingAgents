@@ -1,0 +1,17 @@
+{
+  "symbol": "WGS",
+  "start_date": "2021-03-08",
+  "end_date": "2026-03-07",
+  "rows": 1256,
+  "columns": [
+    "Date",
+    "Adj Close",
+    "Close",
+    "High",
+    "Low",
+    "Open",
+    "Volume"
+  ],
+  "saved_at_utc": "2026-03-07T16:59:55Z",
+  "source": "yfinance"
+}

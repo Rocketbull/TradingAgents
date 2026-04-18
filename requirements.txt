@@ -1,0 +1,12 @@
+typing-extensions
+pandas<3
+yfinance
+stockstats
+setuptools
+requests
+tqdm
+pytz
+pyarrow
+PyPortfolioOpt
+alphalens-reloaded
+xlrd>=2.0.1

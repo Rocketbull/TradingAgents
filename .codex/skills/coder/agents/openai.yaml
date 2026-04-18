@@ -1,0 +1,3 @@
+interface:
+  display_name: "Coder"
+  short_description: "Implement TradingAgents code, tests, dataflow, research, and validation safely"
