@@ -103,8 +103,11 @@ This section captures where the current implementation is still below practical 
 - Practicality risk: high.
 
 2. Transfer coefficient (TC) is currently a weak proxy.
-- Current attribution now supports TC from unconstrained vs constrained active weights; legacy score-vs-weight proxy remains available as fallback.
-- Remaining gap vs Grinold: strengthen logging/usage so corrected TC is always primary in reports and dashboards.
+- Current attribution plumbing now supports TC from unconstrained vs constrained active weights, but the corrected measure is not yet treated as the first-class default metric.
+- Important sequencing note:
+  - this gap does not depend on new external benchmark data,
+  - it should be closed with the current alpha, covariance, and optimizer inputs by making the unconstrained-vs-constrained comparison explicit and primary in reports.
+- Remaining gap vs Grinold: make corrected TC the default reported TC, persist both legs per rebalance, and demote legacy score-vs-weight proxy to debug/transition use only.
 - Practicality risk: high.
 
 3. IC weighting is framework-appropriate but not robust enough yet.
@@ -618,10 +621,13 @@ Priority 6 (attribution correctness):
 - Replace TC proxy with pre/post-constraint active-weight TC:
   - Persist unconstrained active weights and constrained active weights per rebalance.
   - Compute TC from their correlation and compare with current proxy.
+  - Run the unconstrained leg off the same alpha scores and covariance inputs as the constrained optimization; do not block this on official benchmark-weight data.
   - Acceptance: attribution report includes both legacy proxy and corrected TC during transition.
   - Status update:
   - Backtest now passes unconstrained/constrained active weights into attribution diagnostics.
-  - Remaining work: expose corrected TC explicitly in notebook dashboards as primary metric.
+  - Remaining work:
+    - make corrected TC the primary metric in summaries, notebooks, and A/B comparison outputs,
+    - keep legacy proxy only as a secondary/debug field during transition.
 
 Priority 7 (regime adaptation):
 - Add regime-aware alpha routing and evaluation:
@@ -744,12 +750,54 @@ Priority C (breadth and signal diversification):
 
 Priority D (constraint tax + cost realism):
 - Make corrected TC (pre/post-constraint active-weight correlation) the primary reported TC metric; keep legacy proxy only for transition/debug.
+- This is feasible with the current local data stack and should not wait for benchmark-data upgrades.
 - Extend transaction-cost model from fixed bps to optional two-part model:
   - fixed bps,
   - turnover impact multiplier.
 - Continue TE target calibration with benchmark weights from official constituent history when available.
 - Acceptance:
   - attribution outputs corrected TC as default and reports cost decomposition.
+
+### Updated gap-closure sequencing (as of 2026-03-21)
+
+1. Immediate, no new external data required:
+- Close the TC gap now.
+- Implementation:
+  - add an explicit unconstrained optimizer pass for audit purposes,
+  - persist unconstrained active weights and constrained active weights for every rebalance,
+  - report corrected TC as the default TC in `summary.json`, notebooks, and A/B comparison outputs.
+- Acceptance:
+  - corrected TC is the default displayed metric,
+  - legacy score-vs-weight proxy is retained only as a secondary/debug field,
+  - tests cover corrected TC calculation and reporting path.
+
+2. Near-term, mostly internal implementation:
+- Harden alpha translation from signal to tradable portfolio.
+- Implementation:
+  - add profile-level half-life decay controls,
+  - add optional alpha scaling modes (`none`, `total_vol`, later `residual_vol`),
+  - add governance outputs for trailing active IR and `IR * sqrt(Time)`.
+- Acceptance:
+  - config-driven alpha translation options,
+  - summary/notebook outputs include governance metrics,
+  - A/B runs show whether scaling/decay improve Sharpe, active IR, and turnover tradeoff.
+
+3. Data-dependent:
+- Upgrade from proxy benchmark to true benchmark-relative construction.
+- Implementation:
+  - add a benchmark data interface that supports `proxy` and `official` sources,
+  - ingest dated benchmark constituent/weight files when available,
+  - calibrate TE targets and active constraints against official weights.
+- Constraint:
+  - this step depends on obtaining and validating dated benchmark constituent/weight history.
+- Acceptance:
+  - benchmark-relative weights come from dated official inputs for historical runs,
+  - TE and active-risk diagnostics are measured against true benchmark weights instead of liquidity/equal proxies.
+
+4. After the above:
+- Add factor-risk path and walk-forward/stress orchestration.
+- Rationale:
+  - factor-aware residual-vol scaling and stronger active-risk budgeting become more meaningful once TC reporting and benchmark definitions are correct.
 
 Priority E (validation protocol tightening):
 - Add walk-forward + stress matrix orchestrator over:

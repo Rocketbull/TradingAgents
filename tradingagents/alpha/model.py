@@ -16,6 +16,7 @@ from .signals import (
     RangePositionAlpha,
     ReversalAlpha,
     SectorMomentumTop2Alpha,
+    TrailingLaggardBandAlpha,
     TrendAlpha,
     VolAdjMomentumAlpha,
     VolumeShockAlpha,
@@ -41,9 +42,7 @@ class AlphaModel:
             raise ValueError("AlphaModel requires at least one signal")
 
         # Backward-compatible attributes used by existing engine warmup logic.
-        self.long_lookback = max(
-            [s.lookback for s in self._signals.values() if "mom" in s.name or "trend" in s.name] or [22]
-        )
+        self.long_lookback = max([s.lookback for s in self._signals.values()] or [22])
         self.vol_lookback = max(
             [s.lookback for s in self._signals.values() if "vol" in s.name] or [62]
         )
@@ -129,6 +128,12 @@ class AlphaModel:
                 defensive_weight=float(d.get("defensive_weight", 1.0)),
                 risk_weight=float(d.get("risk_weight", 1.0)),
                 flip_sign=bool(d.get("flip_sign", True)),
+            ),
+            "trailing_laggard_band": lambda d: TrailingLaggardBandAlpha(
+                name=str(d.get("name", "trailing_laggard_band")),
+                lookback_window=int(d.get("lookback_window", 252)),
+                outer_n=int(d.get("outer_n", 50)),
+                skip_n=int(d.get("skip_n", 0)),
             ),
             "sector_momentum_top2": lambda d: SectorMomentumTop2Alpha(
                 name=str(d.get("name", "sector_momentum_top2")),

@@ -8,6 +8,7 @@ If you want to run or configure the portfolio/backtest stack, start with:
 
 - `docs/guides/backtest-config-workflow.md`
 - `docs/guides/alpha-signal-registry-guide.md`
+- `docs/guides/csi300-ashare-data-guide.md`
 - `docs/guides/sp500-snapshot-pipeline.md`
 
 If you want project status, architecture direction, or next implementation phases, start with:
@@ -21,6 +22,7 @@ These documents explain how to run existing tooling and research workflows.
 
 - `docs/guides/backtest-config-workflow.md`
 - `docs/guides/alpha-signal-registry-guide.md`
+- `docs/guides/csi300-ashare-data-guide.md`
 - `docs/guides/sp500-snapshot-pipeline.md`
 - `docs/guides/alphalens-research-workflow.md`
 - `docs/guides/alpha-flat-volume-breakout-research-workflow.md`
@@ -51,7 +53,8 @@ Use these as supporting context, then fold any accepted decisions back into a wo
 ### Running Backtests
 1. `docs/guides/backtest-config-workflow.md`
 2. `docs/guides/alpha-signal-registry-guide.md`
-3. `docs/guides/sp500-snapshot-pipeline.md`
+3. `docs/guides/csi300-ashare-data-guide.md`
+4. `docs/guides/sp500-snapshot-pipeline.md`
 
 ### Evaluating Research Signals
 1. `docs/guides/alpha-signal-registry-guide.md`

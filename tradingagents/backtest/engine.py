@@ -372,6 +372,11 @@ class BacktestEngine:
             target_weights = {s: subset_target_weights.get(s, 0.0) for s in tradable_prices.columns}
             raw_target_subset = optimizer_details.get("raw_target_weights", subset_target_weights)
             raw_target_weights = {s: float(raw_target_subset.get(s, 0.0)) for s in tradable_prices.columns}
+            unconstrained_active_subset = optimizer_details.get("audit_unconstrained_active_weights", {})
+            audit_symbols = list(alpha_scores.index)
+            unconstrained_active_weights = {
+                s: float(unconstrained_active_subset.get(s, 0.0)) for s in audit_symbols
+            }
             benchmark_subset = benchmark_weights.to_dict()
             benchmark_all_weights = {
                 s: float(benchmark_subset.get(s, 0.0))
@@ -391,6 +396,10 @@ class BacktestEngine:
                 target_weights=effective_weights,
                 portfolio_value=nav,
             )
+            constrained_active_weights = {
+                s: float(effective_weights.get(s, 0.0)) - float(benchmark_all_weights.get(s, 0.0))
+                for s in audit_symbols
+            }
 
             price_now = tradable_prices.loc[rebalance_date].reindex(alpha_scores.index).astype(float)
             price_next = tradable_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
@@ -416,14 +425,8 @@ class BacktestEngine:
                 alpha_scores=alpha_scores,
                 realized_returns=realized_series,
                 target_weights=effective_weights,
-                unconstrained_active_weights={
-                    s: float(raw_target_weights.get(s, 0.0)) - float(benchmark_all_weights.get(s, 0.0))
-                    for s in tradable_prices.columns
-                },
-                constrained_active_weights={
-                    s: float(effective_weights.get(s, 0.0)) - float(benchmark_all_weights.get(s, 0.0))
-                    for s in tradable_prices.columns
-                },
+                unconstrained_active_weights=unconstrained_active_weights,
+                constrained_active_weights=constrained_active_weights,
             )
             horizon_metrics = self._horizon_metrics(
                 close_prices=tradable_prices,
@@ -469,6 +472,8 @@ class BacktestEngine:
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "benchmark_weights": benchmark_all_weights,
+                    "unconstrained_active_weights": unconstrained_active_weights,
+                    "constrained_active_weights": constrained_active_weights,
                     "alpha_weights": {k: float(v) for k, v in alpha_weights.items()},
                     "scores": {k: float(v) for k, v in raw_alpha_scores.items()},
                     "z_scores": {k: float(v) for k, v in alpha_scores.items()},

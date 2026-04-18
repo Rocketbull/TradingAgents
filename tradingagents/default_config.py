@@ -110,7 +110,7 @@ DEFAULT_CONFIG = {
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
         "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
+        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance, mytt
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
         "news_data": "yfinance",             # Options: alpha_vantage, yfinance
     },

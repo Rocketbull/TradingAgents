@@ -166,10 +166,44 @@ The repository now has two different documentation tracks:
   - [docs/README.md](docs/README.md)
   - [docs/guides/backtest-config-workflow.md](docs/guides/backtest-config-workflow.md)
   - [docs/guides/alpha-signal-registry-guide.md](docs/guides/alpha-signal-registry-guide.md)
+  - [docs/guides/csi300-ashare-data-guide.md](docs/guides/csi300-ashare-data-guide.md)
 - Project planning and implementation status:
   - [docs/plans/active-portfolio-plan.md](docs/plans/active-portfolio-plan.md)
 
 Use the docs index first if you are unsure whether you need a runbook or a roadmap/status document.
+
+## Local Market Data Workflows
+
+The repo now supports local China A-share workflows alongside the existing U.S. market tooling.
+
+- CSI300 universe and weights can be refreshed from the official CSIndex workbook with `tools/csi300_symbols.py`
+- A-share daily history can be downloaded into repo-standard parquet files with `tools/download_market_data.py --vendor ashare`
+- Local technical indicators can be calculated from parquet history with `tradingagents/core/MyTT.py`
+
+Refresh the current CSI300 universe:
+
+```bash
+python tools/csi300_symbols.py
+```
+
+Download 5 years of CSI300 A-share history:
+
+```bash
+python tools/download_market_data.py \
+  --vendor ashare \
+  --symbols-file data/universe/csi300/current/csi300_symbols.txt \
+  --years 5 \
+  --continue-on-error
+```
+
+If you want the technical indicator route to use local parquet history instead of online `yfinance`, set:
+
+```python
+config["tool_vendors"]["get_indicators"] = "mytt"
+config["data_root"] = "data/market"
+```
+
+See [docs/guides/csi300-ashare-data-guide.md](docs/guides/csi300-ashare-data-guide.md) for the full workflow and output layout.
 
 ## TradingAgents Package
 

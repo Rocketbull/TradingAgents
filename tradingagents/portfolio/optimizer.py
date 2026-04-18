@@ -52,11 +52,60 @@ class PortfolioOptimizer:
             details["used_fallback"] = True
             target, raw_target = self._fallback_optimize(alpha_scores, current, benchmark, sector_map)
 
+        details["audit_unconstrained_active_weights"] = self.audit_unconstrained_active_weights(
+            alpha_scores=alpha_scores,
+            covariance=covariance,
+        )
         details["raw_target_weights"] = raw_target
         details["target_weights"] = target
         if return_details:
             return target, details
         return target
+
+    def audit_unconstrained_active_weights(
+        self,
+        alpha_scores: pd.Series,
+        covariance: pd.DataFrame,
+    ) -> Dict[str, float]:
+        """
+        Solve an unconstrained active-weight audit portfolio from the same alpha/covariance
+        inputs used by the constrained optimizer.
+
+        This is a diagnostic long-short active portfolio with the budget constraint
+        sum(active_weights) == 0. It is used for corrected TC measurement, not execution.
+        """
+        symbols = list(alpha_scores.index)
+        if not symbols:
+            raise ValueError("alpha_scores cannot be empty")
+
+        mu = alpha_scores.reindex(symbols).astype(float).fillna(0.0).values
+        cov = (
+            covariance.reindex(index=symbols, columns=symbols)
+            .astype(float)
+            .fillna(0.0)
+            .values
+        )
+        cov = 0.5 * (cov + cov.T)
+        cov = np.nan_to_num(cov, nan=0.0, posinf=0.0, neginf=0.0)
+
+        inv_cov = np.linalg.pinv(cov)
+        ones = np.ones(len(symbols), dtype=float)
+        denom = float(ones @ inv_cov @ ones)
+        if abs(denom) > 1e-12:
+            lagrange = float(ones @ inv_cov @ mu) / denom
+            adjusted_mu = mu - lagrange * ones
+        else:
+            adjusted_mu = mu - float(np.mean(mu))
+
+        risk_aversion = max(float(self.risk_aversion), 1e-12)
+        active = (inv_cov @ adjusted_mu) / risk_aversion
+        active = np.nan_to_num(active, nan=0.0, posinf=0.0, neginf=0.0)
+
+        if np.allclose(active, 0.0):
+            active = adjusted_mu
+
+        active = active - float(np.mean(active))
+        return {symbol: float(weight) for symbol, weight in zip(symbols, active)}
 
     def _optimize_with_pypfopt(
         self,

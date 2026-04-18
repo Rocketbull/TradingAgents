@@ -35,7 +35,15 @@ class BacktestMetrics:
 
         avg_ic = self._safe_mean(equity_curve.get("metric_information_coefficient"))
         avg_breadth = self._safe_mean(equity_curve.get("metric_breadth_proxy"))
-        avg_tc = self._safe_mean(equity_curve.get("metric_transfer_coefficient_proxy"))
+        avg_tc = self._safe_mean(equity_curve.get("metric_transfer_coefficient"))
+        if pd.isna(avg_tc):
+            avg_tc = self._safe_mean(equity_curve.get("metric_transfer_coefficient_proxy"))
+        avg_tc_corrected = self._safe_mean(equity_curve.get("metric_transfer_coefficient_corrected"))
+        if pd.isna(avg_tc_corrected):
+            avg_tc_corrected = avg_tc
+        avg_tc_legacy = self._safe_mean(equity_curve.get("metric_transfer_coefficient_legacy_proxy"))
+        if pd.isna(avg_tc_legacy):
+            avg_tc_legacy = self._safe_mean(equity_curve.get("metric_transfer_coefficient_proxy"))
         implied_ir = self._implied_ir(avg_ic, avg_breadth, avg_tc)
         realized_active_ir = self._active_ir(active_returns)
 
@@ -54,6 +62,9 @@ class BacktestMetrics:
             "tracking_error": tracking_error,
             "average_ic": avg_ic,
             "average_breadth_proxy": avg_breadth,
+            "average_transfer_coefficient": avg_tc,
+            "average_transfer_coefficient_corrected": avg_tc_corrected,
+            "average_transfer_coefficient_legacy_proxy": avg_tc_legacy,
             "average_transfer_coefficient_proxy": avg_tc,
             "implied_information_ratio": implied_ir,
             "realized_active_information_ratio": realized_active_ir,

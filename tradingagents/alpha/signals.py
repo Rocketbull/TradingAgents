@@ -277,6 +277,47 @@ class BtcGldCorrelationAlpha(AlphaSignal):
 
 
 @dataclass(frozen=True)
+class TrailingLaggardBandAlpha(AlphaSignal):
+    name: str
+    lookback_window: int = 252
+    outer_n: int = 50
+    skip_n: int = 0
+
+    @property
+    def lookback(self) -> int:
+        return int(self.lookback_window) + 1
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.shape[0] < self.lookback:
+            return pd.Series(0.0, index=closes.columns)
+
+        trailing = closes.pct_change(int(self.lookback_window)).iloc[-1]
+        ordered = (
+            pd.to_numeric(trailing, errors="coerce")
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+            .sort_values(ascending=True, kind="mergesort")
+        )
+        if ordered.empty:
+            return pd.Series(0.0, index=closes.columns)
+
+        outer_n = max(1, int(self.outer_n))
+        skip_n = max(0, int(self.skip_n))
+        losers = ordered.iloc[: min(outer_n, int(ordered.shape[0]))]
+        selected = losers.iloc[skip_n:]
+        if selected.empty:
+            return pd.Series(0.0, index=closes.columns)
+
+        score = pd.Series(0.0, index=closes.columns, dtype=float)
+        descending_rank = pd.Series(
+            np.arange(selected.shape[0], 0, -1, dtype=float),
+            index=selected.index,
+        )
+        score.loc[descending_rank.index] = descending_rank
+        return score.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+@dataclass(frozen=True)
 class SectorMomentumTop2Alpha(AlphaSignal):
     name: str
     momentum_window: int = 63

@@ -193,6 +193,8 @@ def main() -> None:
         "max_drawdown",
         "tracking_error",
         "realized_active_information_ratio",
+        "average_transfer_coefficient",
+        "average_transfer_coefficient_legacy_proxy",
         "average_executed_turnover",
         "average_raw_turnover",
         "average_turnover_constraint_drag",

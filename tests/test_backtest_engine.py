@@ -44,6 +44,8 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     assert "implied_information_ratio" in summary
     assert "realized_active_information_ratio" in summary
     assert "average_raw_turnover" in summary
+    assert "average_transfer_coefficient" in summary
+    assert "average_transfer_coefficient_legacy_proxy" in summary
     assert "h1_average_ic" in summary
     assert Path(result["output_dir"]).exists()
     assert (Path(result["output_dir"]) / "equity_curve.csv").exists()
@@ -53,6 +55,9 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     assert "alpha_weights" in result["rebalance_log"][0]
     assert "signal_ic" in result["rebalance_log"][0]
     assert "benchmark_weights" in result["rebalance_log"][0]
+    assert "unconstrained_active_weights" in result["rebalance_log"][0]
+    assert "constrained_active_weights" in result["rebalance_log"][0]
+    assert "transfer_coefficient" in result["rebalance_log"][0]["portfolio_metrics"]
 
 
 def test_backtest_engine_honors_single_alpha_selection(tmp_path: Path):

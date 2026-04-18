@@ -578,7 +578,32 @@ def test_attribution_transfer_coefficient_uses_pre_post_active_weights():
         unconstrained_active_weights=unconstrained_active,
         constrained_active_weights=constrained_active,
     )
-    assert metrics["transfer_coefficient_proxy"] > 0.99
+    assert metrics["transfer_coefficient"] > 0.99
+    assert metrics["transfer_coefficient_corrected"] > 0.99
+    assert "transfer_coefficient_legacy_proxy" in metrics
+
+
+def test_optimizer_audit_unconstrained_active_weights_are_dollar_neutral():
+    alpha = pd.Series({"AAA": 0.8, "BBB": 0.2, "CCC": -0.1, "DDD": -0.9}, dtype=float)
+    covariance = pd.DataFrame(
+        [
+            [0.04, 0.01, 0.00, 0.00],
+            [0.01, 0.05, 0.01, 0.00],
+            [0.00, 0.01, 0.06, 0.01],
+            [0.00, 0.00, 0.01, 0.04],
+        ],
+        index=alpha.index,
+        columns=alpha.index,
+        dtype=float,
+    )
+
+    audit_active = PortfolioOptimizer(risk_aversion=3.0).audit_unconstrained_active_weights(
+        alpha_scores=alpha,
+        covariance=covariance,
+    )
+    active = pd.Series(audit_active, dtype=float)
+    assert abs(float(active.sum())) < 1e-8
+    assert active.abs().sum() > 0.0
 
 
 def test_rebalancer_generates_orders():

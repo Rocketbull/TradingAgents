@@ -11,16 +11,21 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tradingagents.dataflows.market_data_store import (
-    download_history,
+    download_history as download_yfinance_history,
     parquet_path_for_symbol,
     save_history_parquet,
 )
+from tradingagents.dataflows.ashare import (
+    download_history as download_ashare_history,
+    normalize_symbol as normalize_ashare_symbol,
+)
+from tools.csi300_symbols import fetch_csi300_symbols
 from tools.sp500_symbols import fetch_sp500_symbols
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Download Yahoo Finance history and store as parquet."
+        description="Download market history and store as parquet."
     )
     parser.add_argument(
         "--symbols",
@@ -38,6 +43,11 @@ def parse_args() -> argparse.Namespace:
         help="Download all current S&P 500 constituents from Wikipedia.",
     )
     parser.add_argument(
+        "--csi300",
+        action="store_true",
+        help="Download all current CSI300 constituents from the official CSIndex workbook.",
+    )
+    parser.add_argument(
         "--crypto",
         action="store_true",
         help="Download default crypto universe (BTC-USD, ETH-USD).",
@@ -45,7 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--commodities",
         action="store_true",
-        help="Download default commodity universe (gold, silver, copper futures).",
+        help="Download default commodity universe (gold, silver, copper futures, XLK, XLE).",
     )
     parser.add_argument(
         "--symbols-file",
@@ -60,9 +70,20 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--out-dir", default="data/market", help="Output root directory")
     parser.add_argument(
+        "--vendor",
+        default="yfinance",
+        choices=["yfinance", "ashare"],
+        help="Market data vendor to use.",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing parquet files if present",
+    )
+    parser.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="Continue downloading remaining symbols if one download fails.",
     )
     return parser.parse_args()
 
@@ -104,14 +125,15 @@ def main() -> None:
         )
         end_date = end_inclusive.strftime("%Y-%m-%d")
 
-    download_end = (end_inclusive + timedelta(days=1)).strftime("%Y-%m-%d")
     merged = list(args.symbols or [])
     if args.sp500:
         merged.extend(fetch_sp500_symbols())
+    if args.csi300:
+        merged.extend(fetch_csi300_symbols())
     if args.crypto:
         merged.extend(["BTC-USD", "ETH-USD"])
     if args.commodities:
-        merged.extend(["GC=F", "SI=F", "HG=F"])
+        merged.extend(["GC=F", "SI=F", "HG=F", "XLK", "XLE"])
     if args.symbols_file:
         merged.extend(load_symbols_file(args.symbols_file))
     symbols = normalize_symbols(merged)
@@ -123,29 +145,52 @@ def main() -> None:
 
     print(
         f"Downloading {len(symbols)} symbols from {start_date} to {end_date} "
-        f"(Yahoo end={download_end}, exclusive)."
+        f"using vendor={args.vendor}."
     )
 
+    failures: list[tuple[str, str]] = []
     for symbol in symbols:
+        storage_symbol = (
+            normalize_ashare_symbol(symbol) if args.vendor == "ashare" else symbol.upper()
+        )
         target = parquet_path_for_symbol(
-            symbol=symbol,
+            symbol=storage_symbol,
             start_date=start_date,
             end_date=end_date,
             root_dir=args.out_dir,
         )
         if target.exists() and not args.overwrite:
-            print(f"[skip] {symbol}: {target}")
+            print(f"[skip] {storage_symbol}: {target}")
             continue
 
-        df = download_history(symbol, start_date, download_end)
-        output_path = save_history_parquet(
-            df=df,
-            symbol=symbol,
-            start_date=start_date,
-            end_date=end_date,
-            root_dir=args.out_dir,
-        )
-        print(f"[ok] {symbol}: rows={len(df)} -> {output_path}")
+        try:
+            if args.vendor == "ashare":
+                df = download_ashare_history(storage_symbol, start_date, end_date)
+            else:
+                download_end = (end_inclusive + timedelta(days=1)).strftime("%Y-%m-%d")
+                df = download_yfinance_history(storage_symbol, start_date, download_end)
+
+            output_path = save_history_parquet(
+                df=df,
+                symbol=storage_symbol,
+                start_date=start_date,
+                end_date=end_date,
+                root_dir=args.out_dir,
+                source=args.vendor,
+            )
+            print(f"[ok] {storage_symbol}: rows={len(df)} -> {output_path}")
+        except Exception as exc:
+            failures.append((storage_symbol, str(exc)))
+            print(f"[error] {storage_symbol}: {exc}")
+            if not args.continue_on_error:
+                raise
+
+    if failures:
+        print(f"[warn] completed with {len(failures)} failures.")
+        for symbol, reason in failures:
+            print(f"[warn] {symbol}: {reason}")
+    else:
+        print("[ok] all downloads completed successfully.")
 
 
 if __name__ == "__main__":

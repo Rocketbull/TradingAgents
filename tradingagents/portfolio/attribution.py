@@ -22,18 +22,24 @@ class AttributionEngine:
     ) -> Dict[str, float]:
         ic = self._ic(alpha_scores, realized_returns)
         breadth = self._breadth_proxy(target_weights)
-        tc = self._transfer_coefficient(
-            alpha_scores=alpha_scores,
-            pre_constraint_scores=pre_constraint_scores,
-            target_weights=target_weights,
+        corrected_tc = self._corrected_transfer_coefficient(
             unconstrained_active_weights=unconstrained_active_weights,
             constrained_active_weights=constrained_active_weights,
         )
+        legacy_tc = self._legacy_transfer_coefficient(
+            alpha_scores=alpha_scores,
+            pre_constraint_scores=pre_constraint_scores,
+            target_weights=target_weights,
+        )
+        tc = corrected_tc if not pd.isna(corrected_tc) else legacy_tc
         realized_ir = self._information_ratio(realized_returns, target_weights)
         return {
             "information_coefficient": ic,
             "breadth_proxy": breadth,
-            "transfer_coefficient_proxy": tc,
+            "transfer_coefficient": tc,
+            "transfer_coefficient_corrected": corrected_tc,
+            "transfer_coefficient_legacy_proxy": legacy_tc,
+            "transfer_coefficient_proxy": legacy_tc,
             "realized_information_ratio": realized_ir,
         }
 
@@ -95,21 +101,25 @@ class AttributionEngine:
         return float(1.0 / denom)
 
     @staticmethod
-    def _transfer_coefficient(
-        alpha_scores: pd.Series,
-        pre_constraint_scores: Optional[pd.Series],
-        target_weights: Dict[str, float],
+    def _corrected_transfer_coefficient(
         unconstrained_active_weights: Optional[Dict[str, float]] = None,
         constrained_active_weights: Optional[Dict[str, float]] = None,
     ) -> float:
-        if unconstrained_active_weights is not None and constrained_active_weights is not None:
-            unconstrained = pd.Series(unconstrained_active_weights, dtype=float)
-            constrained = pd.Series(constrained_active_weights, dtype=float)
-            aligned = pd.concat([unconstrained, constrained], axis=1).dropna()
-            if aligned.shape[0] < 3:
-                return float("nan")
-            return float(aligned.iloc[:, 0].corr(aligned.iloc[:, 1]))
+        if unconstrained_active_weights is None or constrained_active_weights is None:
+            return float("nan")
+        unconstrained = pd.Series(unconstrained_active_weights, dtype=float)
+        constrained = pd.Series(constrained_active_weights, dtype=float)
+        aligned = pd.concat([unconstrained, constrained], axis=1).dropna()
+        if aligned.shape[0] < 3:
+            return float("nan")
+        return float(aligned.iloc[:, 0].corr(aligned.iloc[:, 1]))
 
+    @staticmethod
+    def _legacy_transfer_coefficient(
+        alpha_scores: pd.Series,
+        pre_constraint_scores: Optional[pd.Series],
+        target_weights: Dict[str, float],
+    ) -> float:
         constrained = pd.Series(target_weights).reindex(alpha_scores.index).fillna(0.0)
         source = pre_constraint_scores if pre_constraint_scores is not None else alpha_scores
         aligned = pd.concat([source, constrained], axis=1).dropna()
