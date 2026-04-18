@@ -1,10 +1,10 @@
-# TradingAgents Active Portfolio Management Plan (Grinold/Kahn-aligned)
+# Active Portfolio Management Plan (Grinold/Kahn-aligned)
 
 Document type: implementation plan and living status tracker.
 For runnable workflows and config usage, start with `docs/README.md` and `docs/guides/backtest-config-workflow.md`.
 
 ## Summary
-This document defines and tracks the roadmap to extend TradingAgents from a single-ticker categorical signal system (`BUY`/`SELL`/`HOLD`) into a multi-asset active portfolio management system aligned with Grinold/Kahn principles.
+This document defines and tracks the roadmap to build a multi-asset active portfolio management system aligned with Grinold/Kahn principles.
 
 The plan includes:
 1. Current-state architecture review.
@@ -14,24 +14,24 @@ The plan includes:
 
 This plan is now used as a living status artifact and includes implemented vs pending scope.
 
-As of 2026-03-21, the active portfolio system is no longer just an extension concept. The validated runtime is now the local-data, alpha, portfolio, regime, and backtest stack. The legacy TradingAgents debate/LLM graph remains in the repository, but it is not the primary execution path for active portfolio research. In practice, the broad legacy TradingAgents stack is mainly still useful for data-access and vendor-facing utilities, while portfolio construction and backtesting now live in a separate, more quant-oriented path.
+As of 2026-03-21, the active portfolio system is no longer just an extension concept. The validated runtime is now the local-data, alpha, portfolio, regime, and backtest stack. The legacy TradingAgents debate/LLM graph is retained in vendor/TradingAgents, but it is not the primary execution path for active portfolio research. In practice, the broad legacy TradingAgents stack is mainly still useful for data-access and vendor-facing utilities, while portfolio construction and backtesting now live in a separate, more quant-oriented path.
 
 ## Status Snapshot (as of 2026-03-21)
 Completed:
 - Multi-asset backtest pipeline with rebalance simulation:
-  - `tradingagents/backtest/engine.py`
-  - `tradingagents/backtest/accounting.py`
-  - `tradingagents/backtest/data_loader.py`
+  - `activeportfolio/backtest/engine.py`
+  - `activeportfolio/backtest/accounting.py`
+  - `activeportfolio/backtest/data_loader.py`
   - `tools/run_backtest.py`
 - Portfolio construction core:
-  - `tradingagents/portfolio/risk_model.py`
-  - `tradingagents/portfolio/optimizer.py`
-  - `tradingagents/portfolio/rebalance.py`
-  - `tradingagents/portfolio/attribution.py`
+  - `activeportfolio/portfolio/risk_model.py`
+  - `activeportfolio/portfolio/optimizer.py`
+  - `activeportfolio/portfolio/rebalance.py`
+  - `activeportfolio/portfolio/attribution.py`
 - Alpha module split and extensible registry/profiles:
-  - `tradingagents/alpha/model.py`
-  - `tradingagents/alpha/signals.py`
-  - `tradingagents/alpha/profiles.py`
+  - `activeportfolio/alpha/model.py`
+  - `activeportfolio/alpha/signals.py`
+  - `activeportfolio/alpha/profiles.py`
   - `docs/guides/alpha-signal-registry-guide.md`
 - Grinold diagnostics and horizon metrics in backtest output:
   - IC / breadth proxy / TC proxy / implied IR / realized active IR
@@ -55,16 +55,16 @@ Completed:
   - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.
   - Attribution accepts pre/post-constraint active weights for TC estimation.
 - Regime-switching baseline (rule-based) and dynamic profile routing:
-  - `tradingagents/regime/model.py`
+  - `activeportfolio/regime/model.py`
   - Backtest integration with per-rebalance regime labels/scores/probabilities:
-    - `tradingagents/backtest/engine.py`
+    - `activeportfolio/backtest/engine.py`
   - Config hooks for regime model and regime-to-profile mapping:
-    - `tradingagents/default_config.py`
+    - `activeportfolio/default_config.py`
   - Transition controls:
     - minimum-hold and confidence-buffer gating before regime switches.
     - raw vs applied regime labels logged for auditability.
 - Portfolio/backtest runtime is the current validated product path:
-  - Primary execution flow is `tools/run_backtest.py` -> `tradingagents/backtest/engine.py`.
+  - Primary execution flow is `tools/run_backtest.py` -> `activeportfolio/backtest/engine.py`.
   - Portfolio behavior is covered by:
     - `tests/test_portfolio_pipeline.py`
     - `tests/test_backtest_engine.py`
@@ -72,9 +72,9 @@ Completed:
 - Shared data workflow is established:
   - Market history download/store lives under:
     - `tools/download_market_data.py`
-    - `tradingagents/dataflows/market_data_store.py`
+    - `activeportfolio/dataflows/market_data_store.py`
   - Snapshot-aware universe loading lives under:
-    - `tradingagents/backtest/data_loader.py`
+    - `activeportfolio/backtest/data_loader.py`
     - `tools/build_sp500_snapshots.py`
 
 Partially completed:
@@ -83,7 +83,7 @@ Partially completed:
 - Snapshot-aware universe support exists, but date-aware runtime is still default-off and historical membership quality depends on the snapshot/event inputs.
 - A/B and reproducibility tooling exists, but batch walk-forward and stress-grid orchestration are not yet first-class.
 - Architectural separation is not yet clean:
-  - active portfolio modules and legacy TradingAgents graph still share one top-level package and one repo narrative.
+  - active portfolio modules now live under activeportfolio while the legacy TradingAgents graph is isolated in vendor/TradingAgents.
 
 Not completed:
 - Production-grade historical universe snapshots (anti-survivorship policy).
@@ -133,7 +133,7 @@ Initial quality ratings (for planning only):
 - TC estimation: 5/10 (improved plumbing, still proxy-heavy and needs stricter governance).
 
 ## 1) Title + Scope
-- Title: TradingAgents Active Portfolio Management Plan (Grinold/Kahn-aligned)
+- Title: Active Portfolio Management Plan (Grinold/Kahn-aligned)
 - Scope: Move from single-ticker `BUY`/`SELL`/`HOLD` outputs to multi-asset active portfolio target weights and rebalance decisions relative to a benchmark.
 
 ## 2) Current-State Findings (with file references)
@@ -141,33 +141,33 @@ Initial quality ratings (for planning only):
 ### Primary runtime in use today
 - The active portfolio workflow now runs through:
   - `tools/run_backtest.py`
-  - `tradingagents/backtest/engine.py`
-  - `tradingagents/alpha/model.py`
-  - `tradingagents/portfolio/optimizer.py`
-  - `tradingagents/portfolio/rebalance.py`
-  - `tradingagents/portfolio/attribution.py`
+  - `activeportfolio/backtest/engine.py`
+  - `activeportfolio/alpha/model.py`
+  - `activeportfolio/portfolio/optimizer.py`
+  - `activeportfolio/portfolio/rebalance.py`
+  - `activeportfolio/portfolio/attribution.py`
 - This is the path exercised by the main portfolio/backtest tests.
 
 ### Legacy TradingAgents graph is no longer the portfolio centerline
-- `tradingagents/graph/trading_graph.py` still contains a `portfolio_mode`, but that path is not the validated research/backtest runtime.
+- `vendor/TradingAgents/tradingagents/graph/trading_graph.py` is retained for reference; it is not the validated research/backtest runtime.
 - The graph/state stack remains largely debate/report-centric:
-  - `tradingagents/graph/propagation.py`
-  - `tradingagents/agents/utils/agent_states.py`
-  - `tradingagents/graph/signal_processing.py`
+  - `vendor/TradingAgents/tradingagents/graph/propagation.py`
+  - `vendor/TradingAgents/tradingagents/agents/utils/agent_states.py`
+  - `vendor/TradingAgents/tradingagents/graph/signal_processing.py`
 - For planning purposes, graph integration is now a compatibility concern, not the main delivery path.
 
 ### Shared data layer remains useful
 - The repo still benefits from shared market-data tooling under:
-  - `tradingagents/dataflows/`
+  - `activeportfolio/dataflows/`
   - `tools/download_market_data.py`
-  - `tradingagents/dataflows/market_data_store.py`
-- This is the main area where the broader TradingAgents codebase still contributes directly to the active portfolio system today.
+  - `activeportfolio/dataflows/market_data_store.py`
+- This is the main area where the original TradingAgents lineage still informs the active portfolio system today.
 
 ### Current architectural mismatch
 - Documentation and package narrative still over-emphasize the legacy graph/LLM workflow even though active portfolio work now centers on deterministic local-data backtests.
 - Result: repo structure and public story lag behind actual implementation.
 - Config promotion paths also need to stay explicit:
-  - alpha-only promotion via `tradingagents/alpha/profiles.py`
+  - alpha-only promotion via `activeportfolio/alpha/profiles.py`
   - full backtest baseline promotion via repo-tracked JSON under `research/configs/`
 
 ## 3) Research: Candidate Open-Source Baselines
@@ -259,7 +259,7 @@ The active portfolio target architecture should now be treated as a standalone q
 Recommended structural split inside the repo:
 
 1. Shared data module:
-- `tradingagents/dataflows/`
+- `activeportfolio/dataflows/`
 - responsibility:
   - vendor access,
   - market history download/store,
@@ -267,10 +267,10 @@ Recommended structural split inside the repo:
   - deterministic local file layout.
 
 2. Active portfolio module:
-- `tradingagents/alpha/`
-- `tradingagents/portfolio/`
-- `tradingagents/backtest/`
-- `tradingagents/regime/`
+- `activeportfolio/alpha/`
+- `activeportfolio/portfolio/`
+- `activeportfolio/backtest/`
+- `activeportfolio/regime/`
 - responsibility:
   - signal generation,
   - risk modeling,
@@ -279,10 +279,10 @@ Recommended structural split inside the repo:
   - attribution,
   - evaluation.
 
-3. Legacy TradingAgents module:
-- `tradingagents/graph/`
-- `tradingagents/agents/`
-- `tradingagents/llm_clients/`
+3. Vendored TradingAgents reference:
+- `vendor/TradingAgents/tradingagents/graph/`
+- `vendor/TradingAgents/tradingagents/agents/`
+- `vendor/TradingAgents/tradingagents/llm_clients/`
 - `cli/`
 - responsibility:
   - debate-driven single-name workflows,
@@ -297,7 +297,7 @@ Recommended next architectural move:
 
 Reasoning:
 - The active portfolio code already behaves like a separate product surface.
-- Forcing more work through `TradingAgentsGraph` would add coupling without improving the tested path.
+- Forcing new work through the vendored `TradingAgentsGraph` would add coupling without improving the tested path.
 - A staged internal split is lower-risk than an immediate repo/package extraction.
 
 ## 5) Phased Implementation Plan
@@ -329,7 +329,7 @@ Add state keys:
 
 Gate:
 - End-to-end run returns portfolio state object for a test universe.
-- Remaining gap: state typing in `tradingagents/agents/utils/agent_states.py` is not fully portfolio-first, but this is now secondary unless the graph path becomes a real supported runtime.
+- Remaining gap: state typing in `vendor/TradingAgents/tradingagents/agents/utils/agent_states.py` is not fully portfolio-first, but this is now secondary unless the graph path becomes a real supported runtime.
 
 ## Phase 2: Optimizer integration (Complete for baseline)
 Objectives:
@@ -382,13 +382,13 @@ Gate:
 
 ## Phase 6: Module boundary cleanup (New)
 Objectives:
-- Reduce coupling between active portfolio code and the legacy TradingAgents graph/runtime.
+- Keep active portfolio code independent from the vendored TradingAgents graph/runtime.
 - Make the active portfolio stack the explicit primary surface for research and backtesting.
 
 Deliverables:
 - Define and document the supported active portfolio entrypoints.
 - Separate shared data utilities from legacy graph-only code paths.
-- Stop requiring portfolio roadmap items to flow through `TradingAgentsGraph`.
+- Stop requiring portfolio roadmap items to flow through the vendored `TradingAgentsGraph`.
 - Add a migration note for any remaining portfolio-related graph APIs.
 
 Gate:
@@ -398,7 +398,7 @@ Gate:
 
 ## 6) Interface/API Status
 
-### Config additions in `tradingagents/default_config.py`
+### Config additions in `activeportfolio/default_config.py`
 Implemented baseline keys:
 - `portfolio_mode`
 - `benchmark_symbol`
@@ -423,7 +423,7 @@ Remaining interface work:
   - active portfolio layer,
   - legacy graph layer
 
-### State additions in `tradingagents/agents/utils/agent_states.py`
+### State additions in `vendor/TradingAgents/tradingagents/agents/utils/agent_states.py`
 Implemented baseline portfolio fields:
 - `universe`
 - `alpha_scores`
@@ -437,13 +437,13 @@ Status:
 - and should be treated as compatibility-state fields unless the graph path is revived as a first-class runtime.
 
 ### Core active portfolio modules now implemented
-- `tradingagents/alpha/model.py`
-- `tradingagents/portfolio/risk_model.py`
-- `tradingagents/portfolio/optimizer.py`
-- `tradingagents/portfolio/rebalance.py`
-- `tradingagents/portfolio/attribution.py`
-- `tradingagents/backtest/engine.py`
-- `tradingagents/regime/model.py`
+- `activeportfolio/alpha/model.py`
+- `activeportfolio/portfolio/risk_model.py`
+- `activeportfolio/portfolio/optimizer.py`
+- `activeportfolio/portfolio/rebalance.py`
+- `activeportfolio/portfolio/attribution.py`
+- `activeportfolio/backtest/engine.py`
+- `activeportfolio/regime/model.py`
 
 Design requirement:
 - Keep these modules decoupled behind narrow interfaces to allow optimizer backend swaps.
@@ -548,12 +548,12 @@ This section extends the plan with concepts directly aligned with Grinold/Kahn a
   - delayed rebalance schedule.
 
 ### 10.6 Implementation Mapping
-- `tradingagents/backtest/engine.py`
+- `activeportfolio/backtest/engine.py`
   - add horizon IC/spread/hit metrics per rebalance row.
   - add turnover decomposition fields per rebalance row.
-- `tradingagents/backtest/metrics.py`
+- `activeportfolio/backtest/metrics.py`
   - add Fundamental Law summary and horizon diagnostic aggregates.
-- `tradingagents/portfolio/optimizer.py`
+- `activeportfolio/portfolio/optimizer.py`
   - optionally emit pre-constraint and post-constraint targets.
 - `notebooks/single_backtest_viewer.ipynb`
 - `notebooks/ab_backtest_viewer.ipynb`
@@ -565,7 +565,7 @@ Priority 1 (architecture cleanup):
 - Update docs and code organization to reflect:
   - shared data layer,
   - active alpha/portfolio/backtest layer,
-  - legacy TradingAgents graph layer.
+  - vendored TradingAgents graph layer.
 - Strong recommendation:
   - do an internal module split first,
   - defer any separate package/repo extraction until the active portfolio API is stable.
@@ -652,7 +652,7 @@ Priority 7 (regime adaptation):
 
 Priority 8 (legacy compatibility, only if needed):
 - If there is a real user for graph-based portfolio mode, reduce it to a thin adapter over the active portfolio engine.
-- Do not build new portfolio features directly into `TradingAgentsGraph` unless there is a specific consuming workflow that requires it.
+- Do not build new portfolio features directly into the vendored `TradingAgentsGraph` unless there is a specific consuming workflow that requires it.
 - Acceptance:
   - graph path either:
     - delegates cleanly to the active portfolio engine, or
@@ -716,7 +716,7 @@ This section reviews the external suggestions in `docs/reference/suggestions.md`
 - Explicit signal lifecycle management (standardization, volatility-aware scaling, decay/half-life) is a practical bridge from raw scores to tradable alpha.
 - Scheduled skill-vs-luck checks (`IR * sqrt(Time)`) are useful as governance metrics.
 
-### Suggestions that need adaptation for TradingAgents
+### Suggestions that need adaptation for Active Portfolio
 - Benchmark choice should stay configurable (`SPY`, `QQQ`, or mandate-specific benchmark) rather than fixed in plan text.
 - "Residual volatility scaling" depends on factor-model depth; until factor risk path is complete, keep this as optional mode with clear fallback.
 - "Do not change strategy until T-stat < 1 for over a year" is too rigid for framework-stage work; continue controlled A/B upgrades with fixed data and explicit deltas.

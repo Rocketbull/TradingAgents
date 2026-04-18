@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from tradingagents.backtest import BacktestEngine
-from tradingagents.default_config import DEFAULT_CONFIG
+from activeportfolio.backtest import BacktestEngine
+from activeportfolio.default_config import DEFAULT_CONFIG
 
 
 def _close_frame() -> pd.DataFrame:

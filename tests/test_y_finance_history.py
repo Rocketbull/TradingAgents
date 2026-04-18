@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from tradingagents.dataflows.y_finance import get_YFin_data_online
+from activeportfolio.dataflows.y_finance import get_YFin_data_online
 
 
 class TestYFinanceHistoryDownload(unittest.TestCase):

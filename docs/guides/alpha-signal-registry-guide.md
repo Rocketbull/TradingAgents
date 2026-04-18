@@ -66,13 +66,13 @@ config["alpha_signals"] = [
 - Backtest path already uses registry loading:
   - `BacktestEngine` -> `AlphaModel.from_config(self.config)`
 - Portfolio graph path already uses registry loading:
-  - `TradingAgentsGraph` -> `AlphaModel.from_config(self.config)`
+  - legacy `TradingAgentsGraph` integration -> `AlphaModel.from_config(self.config)`
 - Demo script path already uses registry loading:
   - `tools/demo_portfolio_run.py`
 - Backtest runner:
   - `tools/run_backtest.py`
 - Primary import path:
-  - `from tradingagents.alpha import AlphaModel`
+  - `from activeportfolio.alpha import AlphaModel`
 
 ## Single-Alpha Run
 To force a single alpha in backtest:
@@ -115,8 +115,8 @@ If you want to promote a full backtest setup instead of just the signal mix, see
 Example:
 
 ```python
-from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.alpha import apply_alpha_profile
+from activeportfolio.default_config import DEFAULT_CONFIG
+from activeportfolio.alpha import apply_alpha_profile
 
 config = DEFAULT_CONFIG.copy()
 config = apply_alpha_profile(config, "conservative")
@@ -125,7 +125,7 @@ config = apply_alpha_profile(config, "conservative")
 Inspect available profiles:
 
 ```python
-from tradingagents.alpha import list_alpha_profiles, get_alpha_profile
+from activeportfolio.alpha import list_alpha_profiles, get_alpha_profile
 
 print(list_alpha_profiles())
 print(get_alpha_profile("momentum_heavy"))
@@ -134,8 +134,8 @@ print(get_alpha_profile("momentum_heavy"))
 Example using the new profile:
 
 ```python
-from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.alpha import apply_alpha_profile
+from activeportfolio.default_config import DEFAULT_CONFIG
+from activeportfolio.alpha import apply_alpha_profile
 
 config = DEFAULT_CONFIG.copy()
 config = apply_alpha_profile(config, "diversified_sp500_v1")
@@ -185,8 +185,8 @@ Then render tearsheet figures:
 See also: `docs/guides/alphalens-research-workflow.md`.
 
 ## Extending With a New Alpha Type
-1. Add a new `AlphaSignal` subclass in `tradingagents/alpha/signals.py`.
-2. Register a builder in `tradingagents/alpha/model.py` (`AlphaModel._init_builders()`) with a new `type` key.
+1. Add a new `AlphaSignal` subclass in `activeportfolio/alpha/signals.py`.
+2. Register a builder in `activeportfolio/alpha/model.py` (`AlphaModel._init_builders()`) with a new `type` key.
 3. Add tests in `tests/test_portfolio_pipeline.py`.
 4. Add the new type to this guide.
 

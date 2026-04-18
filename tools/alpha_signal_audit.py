@@ -14,9 +14,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tradingagents.alpha import AlphaModel
-from tradingagents.backtest import BacktestEngine
-from tradingagents.default_config import DEFAULT_CONFIG
+from activeportfolio.alpha import AlphaModel
+from activeportfolio.backtest import BacktestEngine
+from activeportfolio.default_config import DEFAULT_CONFIG
 
 
 def _default_registry_specs() -> list[dict[str, Any]]:

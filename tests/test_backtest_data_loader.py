@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from tradingagents.backtest.data_loader import LocalParquetDataLoader
+from activeportfolio.backtest.data_loader import LocalParquetDataLoader
 
 
 def test_load_symbols_from_sp500_snapshot(tmp_path: Path):

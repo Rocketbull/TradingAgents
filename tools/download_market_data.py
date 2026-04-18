@@ -10,12 +10,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tradingagents.dataflows.market_data_store import (
+from activeportfolio.dataflows.market_data_store import (
     download_history as download_yfinance_history,
     parquet_path_for_symbol,
     save_history_parquet,
 )
-from tradingagents.dataflows.ashare import (
+from activeportfolio.dataflows.ashare import (
     download_history as download_ashare_history,
     normalize_symbol as normalize_ashare_symbol,
 )

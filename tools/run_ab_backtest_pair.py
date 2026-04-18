@@ -11,9 +11,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tradingagents.alpha import AlphaModel, apply_alpha_profile
-from tradingagents.backtest import BacktestEngine
-from tradingagents.default_config import DEFAULT_CONFIG
+from activeportfolio.alpha import AlphaModel, apply_alpha_profile
+from activeportfolio.backtest import BacktestEngine
+from activeportfolio.default_config import DEFAULT_CONFIG
 
 
 def parse_args() -> argparse.Namespace:

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from tradingagents.dataflows.yfinance_classification import (
+from activeportfolio.dataflows.yfinance_classification import (
     build_symbol_maps,
     load_classification_cache,
     save_classification_cache,

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from tradingagents.alpha import AlphaModel
-from tradingagents.alpha.signals import TrailingLaggardBandAlpha
+from activeportfolio.alpha import AlphaModel
+from activeportfolio.alpha.signals import TrailingLaggardBandAlpha
 
 
 def _laggard_frame() -> pd.DataFrame:

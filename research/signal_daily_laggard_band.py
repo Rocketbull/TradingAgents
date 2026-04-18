@@ -15,7 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from research.common import GrinoldDiagnostics, ResearchRunManager
-from tradingagents.backtest.data_loader import LocalParquetDataLoader
+from activeportfolio.backtest.data_loader import LocalParquetDataLoader
 
 
 @dataclass(frozen=True)

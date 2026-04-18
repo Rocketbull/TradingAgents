@@ -18,7 +18,7 @@ try:
     from tools.sp500_symbols import fetch_sp500_symbols
 except ModuleNotFoundError:
     from sp500_symbols import fetch_sp500_symbols
-from tradingagents.dataflows.y_finance import get_fundamentals
+from activeportfolio.dataflows.y_finance import get_fundamentals
 
 DEFAULT_SYMBOLS_FILE = Path("data/universe/sp500/current/sp500_symbols.txt")
 LEGACY_SYMBOLS_FILE = Path("data/market/sp500_symbols.txt")

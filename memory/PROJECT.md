@@ -1,7 +1,7 @@
 # Project Memory
 
 ## Purpose
-TradingAgents is a Python project for agent-assisted trading research, market data workflows, portfolio construction, backtesting, and repeatable analysis.
+Active Portfolio is a Python project for market data workflows, alpha research, portfolio construction, backtesting, and repeatable analysis. The original TradingAgents project is retained as a reference submodule under `vendor/TradingAgents`.
 
 ## Development Priorities
 - Prefer local and incremental changes.

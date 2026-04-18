@@ -12,7 +12,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from research.common.run_manager import ResearchRunManager
-from tradingagents.dataflows.market_data_store import load_history_parquet
+from activeportfolio.dataflows.market_data_store import load_history_parquet
 
 
 def parse_float_list(value: str) -> list[float]:

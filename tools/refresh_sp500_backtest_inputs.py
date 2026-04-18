@@ -17,12 +17,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.download_fundamentals import extract_row, parse_fundamentals_report
 from tools.sp500_symbols import SP500_WIKI_URL, fetch_sp500_symbols
-from tradingagents.dataflows.market_data_store import (
+from activeportfolio.dataflows.market_data_store import (
     download_history,
     parquet_path_for_symbol,
     save_history_parquet,
 )
-from tradingagents.dataflows.y_finance import get_fundamentals
+from activeportfolio.dataflows.y_finance import get_fundamentals
 
 DEFAULT_SYMBOLS_OUT = Path("data/universe/sp500/current/sp500_symbols.txt")
 DEFAULT_SNAPSHOT_DIR = Path("data/universe/sp500/snapshots")

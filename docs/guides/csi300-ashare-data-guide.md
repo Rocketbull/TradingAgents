@@ -109,12 +109,12 @@ Notes:
 
 ## Use MyTT With Local Parquet Data
 
-`tradingagents/core/MyTT.py` now supports local parquet-backed indicator calculation.
+`activeportfolio/core/MyTT.py` now supports local parquet-backed indicator calculation.
 
 Direct Python usage:
 
 ```python
-from tradingagents.core.MyTT import calculate_indicator_from_parquet, get_mytt_indicators_window
+from activeportfolio.core.MyTT import calculate_indicator_from_parquet, get_mytt_indicators_window
 
 macd = calculate_indicator_from_parquet(
     symbol="SH600519",
@@ -145,7 +145,7 @@ The technical indicator vendor can be switched from `yfinance` to `mytt`.
 Example:
 
 ```python
-from tradingagents.dataflows.config import set_config
+from activeportfolio.dataflows.config import set_config
 
 set_config({
     "data_root": "data/market",
@@ -161,6 +161,6 @@ After that, calls routed through `route_to_vendor("get_indicators", ...)` will u
 
 - `tools/csi300_symbols.py`
 - `tools/download_market_data.py`
-- `tradingagents/dataflows/ashare.py`
-- `tradingagents/core/MyTT.py`
-- `tradingagents/dataflows/interface.py`
+- `activeportfolio/dataflows/ashare.py`
+- `activeportfolio/core/MyTT.py`
+- `activeportfolio/dataflows/interface.py`

@@ -5,17 +5,17 @@ from pathlib import Path
 
 import pandas as pd
 
-from tradingagents.alpha import AlphaModel
-from tradingagents.alpha.signals import FlatVolumeBreakoutAlpha
-from tradingagents.alpha.profiles import (
+from activeportfolio.alpha import AlphaModel
+from activeportfolio.alpha.signals import FlatVolumeBreakoutAlpha
+from activeportfolio.alpha.profiles import (
     apply_alpha_profile,
     get_alpha_profile,
     list_alpha_profiles,
 )
-from tradingagents.portfolio.optimizer import PortfolioOptimizer
-from tradingagents.portfolio.rebalance import Rebalancer
-from tradingagents.portfolio.risk_model import RiskModel
-from tradingagents.portfolio.attribution import AttributionEngine
+from activeportfolio.portfolio.optimizer import PortfolioOptimizer
+from activeportfolio.portfolio.rebalance import Rebalancer
+from activeportfolio.portfolio.risk_model import RiskModel
+from activeportfolio.portfolio.attribution import AttributionEngine
 
 
 def _price_frame() -> pd.DataFrame:

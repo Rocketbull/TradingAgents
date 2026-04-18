@@ -10,7 +10,7 @@ OUT_DIR="${3:-data/market}"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Python binary not found at $PYTHON_BIN"
-  echo "Set PYTHON_BIN to your TradingAgents environment executable and retry."
+  echo "Set PYTHON_BIN to your Active Portfolio environment executable and retry."
   exit 1
 fi
 

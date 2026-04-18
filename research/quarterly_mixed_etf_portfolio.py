@@ -13,7 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from research.common.run_manager import ResearchRunManager
-from tradingagents.dataflows.market_data_store import load_history_window
+from activeportfolio.dataflows.market_data_store import load_history_window
 
 
 def parse_args() -> argparse.Namespace:

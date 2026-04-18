@@ -15,8 +15,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from research.common import ResearchRunManager
-from tradingagents.backtest.data_loader import LocalParquetDataLoader
-from tradingagents.dataflows.yfinance_classification import (
+from activeportfolio.backtest.data_loader import LocalParquetDataLoader
+from activeportfolio.dataflows.yfinance_classification import (
     DEFAULT_CLASSIFICATION_CACHE,
     build_symbol_maps,
 )

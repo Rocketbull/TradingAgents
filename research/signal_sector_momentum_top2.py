@@ -16,8 +16,8 @@ from research.sector_momentum_top2_sector import (
     _find_latest_fundamentals_csv,
     _load_sector_map_from_fundamentals,
 )
-from tradingagents.backtest.data_loader import LocalParquetDataLoader
-from tradingagents.dataflows.yfinance_classification import (
+from activeportfolio.backtest.data_loader import LocalParquetDataLoader
+from activeportfolio.dataflows.yfinance_classification import (
     DEFAULT_CLASSIFICATION_CACHE,
     build_symbol_maps,
 )

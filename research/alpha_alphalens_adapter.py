@@ -13,9 +13,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from research.common import ResearchRunManager
-from tradingagents.alpha import AlphaModel, apply_alpha_profile
-from tradingagents.backtest.data_loader import LocalParquetDataLoader
-from tradingagents.default_config import DEFAULT_CONFIG
+from activeportfolio.alpha import AlphaModel, apply_alpha_profile
+from activeportfolio.backtest.data_loader import LocalParquetDataLoader
+from activeportfolio.default_config import DEFAULT_CONFIG
 
 try:
     from alphalens import performance, utils
@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
         config_defaults = loaded
 
     parser = argparse.ArgumentParser(
-        description="Adapter: run Alphalens diagnostics for one factor from TradingAgents alpha profiles."
+        description="Adapter: run Alphalens diagnostics for one factor from Active Portfolio alpha profiles."
     )
     parser.add_argument("--config-json", default=pre_args.config_json, help="Optional JSON config file.")
     parser.add_argument("--start-date", default=None, help="YYYY-MM-DD")

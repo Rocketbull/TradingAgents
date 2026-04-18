@@ -1,4 +1,4 @@
-# TradingAgents Agent Guide
+# Active Portfolio Agent Guide
 
 This file is operating guidance for agents. Durable project knowledge lives in `memory/`.
 
@@ -6,6 +6,7 @@ This file is operating guidance for agents. Durable project knowledge lives in `
 - Read `memory/INDEX.md` first.
 - Then read only the memory files relevant to the task.
 - Use `.codex/skills/` when a task clearly matches a skill.
+- Active portfolio runtime code lives in `activeportfolio/`; the original TradingAgents project is vendored as `vendor/TradingAgents`.
 - Keep changes local, incremental, and consistent with existing module boundaries.
 
 ## First-Principles Workflow

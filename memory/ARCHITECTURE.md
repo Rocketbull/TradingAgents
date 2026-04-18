@@ -2,11 +2,13 @@
 
 ## Module Landmarks
 - `tools/`: local scripts such as market data downloaders and utilities.
-- `tradingagents/dataflows/`: vendor/data access and storage.
-- `tradingagents/alpha/`: alpha signal classes, registry, and IC-based combination.
-- `tradingagents/portfolio/`: risk, optimizer, rebalance, and attribution components.
-- `tradingagents/backtest/`: backtest engine, accounting, metrics, and local data loader.
-- `tradingagents/agents/utils/`: tools exposed to agent workflows.
+- `activeportfolio/dataflows/`: vendor/data access and storage.
+- `activeportfolio/alpha/`: alpha signal classes, registry, and IC-based combination.
+- `activeportfolio/portfolio/`: risk, optimizer, rebalance, and attribution components.
+- `activeportfolio/backtest/`: backtest engine, accounting, metrics, and local data loader.
+- `activeportfolio/regime/`: rule-based regime model for optional alpha/profile routing.
+- `activeportfolio/core/`: local technical indicator support.
+- `vendor/TradingAgents/`: original TradingAgents repository pinned as a git submodule for reference.
 - `research/`: repeatable research scripts and shared utilities.
 - `notebooks/`: viewers for backtest and research outputs.
 - `tests/`: unit and integration tests.
@@ -25,7 +27,7 @@
 - Attribution supports TC diagnostics using pre/post-constraint active weights.
 
 For portfolio/backtest changes, inspect:
-1. `tradingagents/backtest/engine.py`
-2. `tradingagents/portfolio/optimizer.py`
-3. `tradingagents/portfolio/attribution.py`
-4. `tradingagents/default_config.py`
+1. `activeportfolio/backtest/engine.py`
+2. `activeportfolio/portfolio/optimizer.py`
+3. `activeportfolio/portfolio/attribution.py`
+4. `activeportfolio/default_config.py`

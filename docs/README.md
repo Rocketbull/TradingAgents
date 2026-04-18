@@ -70,7 +70,7 @@ Use these as supporting context, then fold any accepted decisions back into a wo
 There are two different promotion levels in this repo:
 
 1. Alpha-only promotion:
-   - update `tradingagents/alpha/profiles.py`
+   - update `activeportfolio/alpha/profiles.py`
 2. Full backtest baseline promotion:
    - save a repo-tracked config JSON under `research/configs/`
 

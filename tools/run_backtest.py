@@ -10,8 +10,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tradingagents.backtest import BacktestEngine
-from tradingagents.default_config import DEFAULT_CONFIG
+from activeportfolio.backtest import BacktestEngine
+from activeportfolio.default_config import DEFAULT_CONFIG
 
 
 def load_config_json(path: str | None) -> dict[str, Any]:

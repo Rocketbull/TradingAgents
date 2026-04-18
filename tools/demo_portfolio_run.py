@@ -8,9 +8,9 @@ from typing import Dict, Iterable, Optional
 
 import pandas as pd
 
-from tradingagents.alpha import AlphaModel
-from tradingagents.default_config import DEFAULT_CONFIG
-from tradingagents.portfolio import (
+from activeportfolio.alpha import AlphaModel
+from activeportfolio.default_config import DEFAULT_CONFIG
+from activeportfolio.portfolio import (
     AttributionEngine,
     PortfolioOptimizer,
     Rebalancer,

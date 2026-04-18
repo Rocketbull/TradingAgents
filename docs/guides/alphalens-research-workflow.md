@@ -3,7 +3,7 @@
 Document type: user workflow guide.
 For the larger implementation roadmap, see `docs/plans/active-portfolio-plan.md`.
 
-This project now includes an Alphalens adapter to validate individual factors using the same local data and profile setup used by TradingAgents research scripts.
+This project now includes an Alphalens adapter to validate individual factors using the same local data and profile setup used by Active Portfolio research scripts.
 
 ## 1) Run Adapter for One Factor
 

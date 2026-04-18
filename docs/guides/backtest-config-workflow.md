@@ -12,7 +12,7 @@ Use this workflow to run repeatable backtests from repo-tracked config files and
 ## Config Precedence
 For `tools/run_backtest.py`, effective settings are applied in this order:
 
-1. `tradingagents/default_config.py`
+1. `activeportfolio/default_config.py`
 2. `--config-json <file>`
 3. explicit CLI flags
 
@@ -79,7 +79,7 @@ Notes:
 Use this when you want to standardize only the alpha signal mix and alpha-layer settings.
 
 Where:
-- `tradingagents/alpha/profiles.py`
+- `activeportfolio/alpha/profiles.py`
 
 What it changes:
 - `alpha_signal_registry`
@@ -115,12 +115,12 @@ This is the right level when you want repeatable portfolio/backtest runs with on
 ## When To Edit `DEFAULT_CONFIG`
 Treat `DEFAULT_CONFIG` as the framework-wide fallback, not the place for every research baseline.
 
-Only move settings into `tradingagents/default_config.py` when you want them to become the general repo default for most runs.
+Only move settings into `activeportfolio/default_config.py` when you want them to become the general repo default for most runs.
 
 In most cases:
-- alpha-only standardization -> promote to `tradingagents/alpha/profiles.py`
+- alpha-only standardization -> promote to `activeportfolio/alpha/profiles.py`
 - full research baseline -> save JSON under `research/configs/`
-- framework-wide default behavior change -> update `tradingagents/default_config.py`
+- framework-wide default behavior change -> update `activeportfolio/default_config.py`
 
 ## Recommended Workflow
 

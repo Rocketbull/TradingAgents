@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 from research.common import GrinoldDiagnostics, ResearchRunManager
-from tradingagents.backtest.data_loader import LocalParquetDataLoader
+from activeportfolio.backtest.data_loader import LocalParquetDataLoader
 
 
 def parse_args() -> argparse.Namespace:

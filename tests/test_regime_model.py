@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from tradingagents.regime import RuleBasedRegimeModel
+from activeportfolio.regime import RuleBasedRegimeModel
 
 
 def _frame(spy_slope: float, btc_slope: float, gld_slope: float) -> pd.DataFrame:
