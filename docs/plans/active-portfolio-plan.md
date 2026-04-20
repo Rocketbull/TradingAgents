@@ -132,6 +132,60 @@ Initial quality ratings (for planning only):
 - IC weighting: 5/10 (good baseline, not production quality).
 - TC estimation: 5/10 (improved plumbing, still proxy-heavy and needs stricter governance).
 
+## Production Priority Roadmap (2026-04-18 review)
+This roadmap captures the production-level gap review against a Grinold/Kahn-style active management process. It supersedes older sequencing when work is specifically about production readiness rather than research convenience.
+
+Priority 1: Benchmark truth layer.
+- Add official point-in-time benchmark constituent and weight ingestion.
+- Store dated benchmark snapshots with source, as-of date, effective date, and checksum/provenance metadata.
+- Make benchmark-relative backtests consume official weights instead of `liquidity_proxy` when production mode is enabled.
+- Acceptance:
+  - active weights are computed versus official benchmark weights,
+  - benchmark returns can be reproduced from stored benchmark holdings,
+  - historical runs cannot silently fall back to current/static membership.
+
+Priority 2: Factor risk model.
+- Add a production risk-model path alongside the covariance-only baseline.
+- Include factor exposures, factor covariance, specific risk, and active risk contribution by factor/sector/security.
+- Wire optimizer constraints to forecast active risk and factor exposure budgets.
+- Acceptance:
+  - optimizer can run with `risk_model_type = covariance|factor`,
+  - reports include forecast vs realized tracking error,
+  - active risk contribution sums reconcile to total active risk.
+
+Priority 3: Optimizer governance.
+- Replace silent optimizer fallback with explicit solver status, infeasibility reason, and configurable hard-fail behavior.
+- Define a deterministic constraint-relaxation ladder and persist which constraints were relaxed.
+- Continue keeping the heuristic fallback for research, but make it opt-in or loudly audited for production runs.
+- Acceptance:
+  - every rebalance log includes backend, solver status, fallback flag, and relaxation/audit details,
+  - infeasible production runs fail fast unless an explicit relaxation policy is configured.
+
+Priority 4: Research and model governance.
+- Add walk-forward orchestration, stress-grid runs, strategy versioning, and run manifests with config/data/code hashes.
+- Freeze promoted alpha profiles and require A/B evidence before changing production defaults.
+- Track multiple-testing/overfit risk, signal decay, turnover, capacity, and regime-specific performance.
+- Acceptance:
+  - every promoted strategy has a reproducible manifest,
+  - walk-forward/stress reports are comparable across runs,
+  - production configs are versioned separately from exploratory configs.
+
+Priority 5: Execution model.
+- Add ADV participation limits, spread/impact/slippage models, cash handling, lot-size/min-order rules, trade-timing assumptions, and failed-trade handling.
+- Support market-specific constraints such as suspensions, limit-up/limit-down, short/borrow rules if relevant.
+- Acceptance:
+  - orders are capacity-aware,
+  - cost assumptions are scenario-testable,
+  - rebalance logs explain unfilled, clipped, or skipped trades.
+
+Priority 6: Production reporting.
+- Extend reports beyond total return/Sharpe/IC/TC to include factor attribution, active risk attribution, constraint shadow costs, drawdown attribution, exposure drift, and forecast-vs-realized risk calibration.
+- Make corrected TC and effective breadth first-class dashboard fields, with legacy proxies demoted to debug fields.
+- Acceptance:
+  - reports explain where active return and active risk came from,
+  - implied IR, realized active IR, IC, TC, and breadth are internally consistent,
+  - PM/reviewer can audit each rebalance without re-running code.
+
 ## 1) Title + Scope
 - Title: Active Portfolio Management Plan (Grinold/Kahn-aligned)
 - Scope: Move from single-ticker `BUY`/`SELL`/`HOLD` outputs to multi-asset active portfolio target weights and rebalance decisions relative to a benchmark.
