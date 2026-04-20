@@ -26,6 +26,9 @@
 - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.
 - Attribution supports TC diagnostics using pre/post-constraint active weights.
 
+## Production Readiness Roadmap
+For production-level active management work, follow the priority sequence in `docs/plans/active-portfolio-plan.md`: benchmark truth layer, factor risk model, optimizer governance, research/model governance, execution model, then production reporting. Do not tune optimizer or alpha defaults as "production" work before point-in-time official benchmark weights and risk-model governance are in place.
+
 For portfolio/backtest changes, inspect:
 1. `activeportfolio/backtest/engine.py`
 2. `activeportfolio/portfolio/optimizer.py`
