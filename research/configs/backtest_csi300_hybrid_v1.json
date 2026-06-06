@@ -19,7 +19,7 @@
   "transaction_cost_bps": 5.0,
   "backtest_start_date": "2021-05-23",
   "backtest_end_date": "2026-02-28",
-  "backtest_output_dir": "eval_results/backtest/csi300_baseline_relaxed",
+  "backtest_output_dir": "eval_results/backtest/csi300_hybrid_v1",
   "data_root": "data/market",
   "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
   "fetch_missing_sector_data": false,

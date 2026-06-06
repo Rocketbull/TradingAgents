@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import json
+import math
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
@@ -256,9 +257,10 @@ class BacktestEngine:
                 fetch_missing=True,
             )
 
-        for i in range(len(rebalance_dates) - 1):
+        for i in range(len(rebalance_dates)):
             rebalance_date = rebalance_dates[i]
-            next_date = rebalance_dates[i + 1]
+            is_terminal_rebalance = i == len(rebalance_dates) - 1
+            next_date = rebalance_dates[i + 1] if not is_terminal_rebalance else rebalance_date
             universe_today = per_date_universe.get(rebalance_date, list(tradable_prices.columns))
             today_close_history = tradable_prices.loc[:rebalance_date, universe_today].ffill()
             today_volume_history = (
@@ -402,38 +404,57 @@ class BacktestEngine:
             }
 
             price_now = tradable_prices.loc[rebalance_date].reindex(alpha_scores.index).astype(float)
-            price_next = tradable_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
-            symbol_returns = ((price_next / price_now) - 1.0).replace([pd.NA], 0.0).fillna(0.0).to_dict()
-            realized_series = pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0)
             signal_ic_now: Dict[str, float] = {}
-            for signal_name in components.columns:
-                ic_val = self.attribution.cross_sectional_ic(
-                    components[signal_name].reindex(alpha_scores.index), realized_series
-                )
-                signal_ic_now[signal_name] = float(ic_val)
-                signal_ic_history.setdefault(signal_name, []).append(float(ic_val))
+            if is_terminal_rebalance:
+                symbol_returns = {symbol: 0.0 for symbol in alpha_scores.index}
+                realized_series = pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0)
+                nav_after_period = nav_after_costs
+                portfolio_return = 0.0
+                benchmark_return = 0.0
+                metrics = {
+                    "information_coefficient": float("nan"),
+                    "breadth_proxy": float("nan"),
+                    "transfer_coefficient": float("nan"),
+                    "transfer_coefficient_corrected": float("nan"),
+                    "transfer_coefficient_legacy_proxy": float("nan"),
+                    "transfer_coefficient_proxy": float("nan"),
+                    "realized_information_ratio": float("nan"),
+                }
+                horizon_metrics = {}
+                for signal_name in components.columns:
+                    signal_ic_now[signal_name] = float("nan")
+            else:
+                price_next = tradable_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
+                symbol_returns = ((price_next / price_now) - 1.0).replace([pd.NA], 0.0).fillna(0.0).to_dict()
+                realized_series = pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0)
+                for signal_name in components.columns:
+                    ic_val = self.attribution.cross_sectional_ic(
+                        components[signal_name].reindex(alpha_scores.index), realized_series
+                    )
+                    signal_ic_now[signal_name] = float(ic_val)
+                    signal_ic_history.setdefault(signal_name, []).append(float(ic_val))
 
-            nav_after_period, portfolio_return = self.accounting.step_nav(
-                nav_after_rebalance=nav_after_costs,
-                weights=effective_weights,
-                symbol_returns=symbol_returns,
-            )
-            bench_now = float(benchmark_series.loc[rebalance_date]) if rebalance_date in benchmark_series.index else 0.0
-            bench_next = float(benchmark_series.loc[next_date]) if next_date in benchmark_series.index else 0.0
-            benchmark_return = (bench_next / bench_now - 1.0) if bench_now > 0 else 0.0
-            metrics = self.attribution.diagnostics(
-                alpha_scores=alpha_scores,
-                realized_returns=realized_series,
-                target_weights=effective_weights,
-                unconstrained_active_weights=unconstrained_active_weights,
-                constrained_active_weights=constrained_active_weights,
-            )
-            horizon_metrics = self._horizon_metrics(
-                close_prices=tradable_prices,
-                rebalance_dates=rebalance_dates,
-                rebalance_index=i,
-                alpha_scores=alpha_scores,
-            )
+                nav_after_period, portfolio_return = self.accounting.step_nav(
+                    nav_after_rebalance=nav_after_costs,
+                    weights=effective_weights,
+                    symbol_returns=symbol_returns,
+                )
+                bench_now = float(benchmark_series.loc[rebalance_date]) if rebalance_date in benchmark_series.index else 0.0
+                bench_next = float(benchmark_series.loc[next_date]) if next_date in benchmark_series.index else 0.0
+                benchmark_return = (bench_next / bench_now - 1.0) if bench_now > 0 else 0.0
+                metrics = self.attribution.diagnostics(
+                    alpha_scores=alpha_scores,
+                    realized_returns=realized_series,
+                    target_weights=effective_weights,
+                    unconstrained_active_weights=unconstrained_active_weights,
+                    constrained_active_weights=constrained_active_weights,
+                )
+                horizon_metrics = self._horizon_metrics(
+                    close_prices=tradable_prices,
+                    rebalance_dates=rebalance_dates,
+                    rebalance_index=i,
+                    alpha_scores=alpha_scores,
+                )
 
             row = {
                 "trade_date": rebalance_date.strftime("%Y-%m-%d"),
@@ -454,6 +475,7 @@ class BacktestEngine:
                 "regime_prob_risk_off": float(regime["probabilities"].get("risk_off", 0.0)),
                 "regime_switched": int(bool(regime.get("switched", False))),
                 "regime_hold_count": int(regime.get("hold_count", 0)),
+                "terminal_snapshot": int(is_terminal_rebalance),
             }
             row.update({f"metric_{k}": float(v) for k, v in metrics.items()})
             row.update({f"metric_{k}": float(v) for k, v in horizon_metrics.items()})
@@ -510,13 +532,20 @@ class BacktestEngine:
         summary = self.metrics.summarize(equity_curve)
         summary["start_date"] = start_date
         summary["end_date"] = end_date
+        summary["benchmark_symbol"] = benchmark_symbol
         summary["rebalance_points"] = len(equity_curve)
         summary["final_nav"] = float(equity_curve["nav"].iloc[-1])
         summary["initial_capital"] = initial_capital
 
         out_dir = self._output_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
+        daily_market_value = self._daily_market_value_curve(
+            tradable_prices=tradable_prices,
+            benchmark_series=benchmark_series,
+            rebalance_log=rebalance_log,
+        )
         equity_curve.to_csv(out_dir / "equity_curve.csv", index=False)
+        daily_market_value.to_csv(out_dir / "daily_market_value.csv", index=False)
         pd.DataFrame(weights_rows).to_csv(out_dir / "weights_history.csv", index=False)
         pd.DataFrame(orders_rows).to_csv(out_dir / "orders_history.csv", index=False)
         with open(out_dir / "rebalance_log.jsonl", "w", encoding="utf-8") as fh:
@@ -527,9 +556,101 @@ class BacktestEngine:
         return {
             "summary": summary,
             "equity_curve": equity_curve,
+            "daily_market_value": daily_market_value,
             "rebalance_log": rebalance_log,
             "output_dir": str(out_dir),
         }
+
+    @staticmethod
+    def _daily_market_value_curve(
+        tradable_prices: pd.DataFrame,
+        benchmark_series: pd.Series,
+        rebalance_log: list[dict[str, Any]],
+    ) -> pd.DataFrame:
+        if not rebalance_log:
+            raise ValueError("rebalance_log is empty")
+
+        rebalance_by_date = {
+            pd.Timestamp(str(row["trade_date"])): row
+            for row in rebalance_log
+        }
+        start_date = min(rebalance_by_date)
+        end_date = max(rebalance_by_date)
+        trading_index = tradable_prices.index[
+            (tradable_prices.index >= start_date) & (tradable_prices.index <= end_date)
+        ]
+        if trading_index.empty:
+            raise ValueError("No trading dates overlap the rebalance log window.")
+
+        tradable_returns = (
+            tradable_prices.reindex(trading_index)
+            .ffill()
+            .pct_change()
+            .replace([math.inf, -math.inf], 0.0)
+            .fillna(0.0)
+        )
+        benchmark_returns = (
+            benchmark_series.reindex(trading_index)
+            .ffill()
+            .pct_change()
+            .replace([math.inf, -math.inf], 0.0)
+            .fillna(0.0)
+        )
+
+        current_weights: dict[str, float] = {}
+        portfolio_value: float | None = None
+        benchmark_value: float | None = None
+        rows: list[dict[str, Any]] = []
+
+        for i, trade_date in enumerate(trading_index):
+            rebalance_row = rebalance_by_date.get(trade_date)
+            if i == 0:
+                if rebalance_row is None:
+                    raise ValueError("First trading date is missing a rebalance snapshot.")
+                portfolio_value = float(rebalance_row["nav_after_costs"])
+                benchmark_value = portfolio_value
+                current_weights = {
+                    str(symbol): float(weight)
+                    for symbol, weight in dict(rebalance_row.get("target_weights", {})).items()
+                }
+                portfolio_return = 0.0
+                benchmark_return = 0.0
+            else:
+                assert portfolio_value is not None
+                assert benchmark_value is not None
+                prev_portfolio_value = portfolio_value
+                symbol_daily_returns = tradable_returns.loc[trade_date]
+                portfolio_return = float(
+                    sum(
+                        float(current_weights.get(symbol, 0.0)) * float(symbol_daily_returns.get(symbol, 0.0))
+                        for symbol in tradable_prices.columns
+                    )
+                )
+                portfolio_value = float(prev_portfolio_value * (1.0 + portfolio_return))
+                benchmark_return = float(benchmark_returns.loc[trade_date])
+                benchmark_value = float(benchmark_value * (1.0 + benchmark_return))
+
+                if rebalance_row is not None:
+                    portfolio_value = float(rebalance_row["nav_after_costs"])
+                    portfolio_return = float(portfolio_value / prev_portfolio_value - 1.0)
+                    current_weights = {
+                        str(symbol): float(weight)
+                        for symbol, weight in dict(rebalance_row.get("target_weights", {})).items()
+                    }
+
+            rows.append(
+                {
+                    "trade_date": trade_date.strftime("%Y-%m-%d"),
+                    "portfolio_value": float(portfolio_value),
+                    "benchmark_value": float(benchmark_value),
+                    "portfolio_return": float(portfolio_return),
+                    "benchmark_return": float(benchmark_return),
+                    "active_return": float(portfolio_return - benchmark_return),
+                    "is_rebalance": int(rebalance_row is not None),
+                }
+            )
+
+        return pd.DataFrame(rows)
 
     @staticmethod
     def _resolve_path_with_legacy(path: Path, legacy_path: Path, expect_dir: bool) -> Path:

@@ -4,7 +4,7 @@
   "portfolio_universe_size": 300,
   "symbol_file": "data/universe/csi300/current/csi300_symbols.txt",
   "dynamic_liquidity_filter": true,
-  "liquidity_top_n": 200,
+  "liquidity_top_n": 100,
   "liquidity_lookback_days": 60,
   "benchmark_weight_mode": "liquidity_proxy",
   "benchmark_weight_lookback_days": 60,
@@ -19,7 +19,7 @@
   "transaction_cost_bps": 5.0,
   "backtest_start_date": "2021-05-23",
   "backtest_end_date": "2026-02-28",
-  "backtest_output_dir": "eval_results/backtest/csi300_baseline_relaxed",
+  "backtest_output_dir": "eval_results/backtest/csi300_mean_reversion_heavy",
   "data_root": "data/market",
   "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
   "fetch_missing_sector_data": false,
@@ -29,11 +29,7 @@
     "rev_1m",
     "low_vol",
     "downside_vol",
-    "mom_1m",
-    "mom_3m",
-    "vol_adj_mom_3m",
-    "vol_confirmed_mom_1m",
-    "volume_shock_1w"
+    "mom_3m"
   ],
   "alpha_signal_registry": [
     {
@@ -58,38 +54,13 @@
     },
     {
       "type": "momentum",
-      "name": "mom_1m",
-      "window": 21
-    },
-    {
-      "type": "momentum",
       "name": "mom_3m",
       "window": 63
-    },
-    {
-      "type": "vol_adj_momentum",
-      "name": "vol_adj_mom_3m",
-      "momentum_window": 63,
-      "vol_window": 21
-    },
-    {
-      "type": "volume_confirmed_momentum",
-      "name": "vol_confirmed_mom_1m",
-      "momentum_window": 21,
-      "vol_short_window": 5,
-      "vol_long_window": 20
-    },
-    {
-      "type": "volume_shock",
-      "name": "volume_shock_1w",
-      "price_window": 5,
-      "vol_short_window": 5,
-      "vol_long_window": 20
     }
   ],
   "ic_lookback_rebalances": 26,
-  "ic_weighting_mode": "positive",
-  "alpha_corr_penalty": 0.45,
+  "ic_weighting_mode": "signed",
+  "alpha_corr_penalty": 0.5,
   "alpha_min_ic_weight": 0.0,
   "alpha_weight_smoothing": 0.25,
   "alpha_max_signal_weight": 0.35,

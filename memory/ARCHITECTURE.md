@@ -15,6 +15,7 @@
 
 ## Data And I/O Rules
 - Market data output belongs under `data/market/`.
+- Manually curated ETF benchmark seeds live under `data/universe/etf/current/`.
 - Keep `data/` contents out of git except placeholders and metadata.
 - For new downloader behavior, maintain deterministic output paths.
 - Existing market history paths use `data/market/<SYMBOL>/history_<start>_<end>.parquet`.

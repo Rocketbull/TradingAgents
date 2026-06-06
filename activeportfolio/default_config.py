@@ -54,6 +54,7 @@ DEFAULT_CONFIG = {
         "mom_3m",
         "mom_6m",
         "mom_12m",
+        "mom_12m_skip_1m",
         "rev_1w",
         "rev_1m",
         "low_vol",

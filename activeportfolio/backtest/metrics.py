@@ -14,14 +14,24 @@ class BacktestMetrics:
         if equity_curve.empty:
             raise ValueError("equity_curve is empty")
 
-        nav = equity_curve["nav"].astype(float)
-        portfolio_returns = equity_curve["portfolio_return"].astype(float).fillna(0.0)
-        benchmark_returns = equity_curve["benchmark_return"].astype(float).fillna(0.0)
+        terminal_mask = (
+            equity_curve["terminal_snapshot"].astype(bool)
+            if "terminal_snapshot" in equity_curve.columns
+            else pd.Series(False, index=equity_curve.index)
+        )
+        performance_curve = equity_curve.loc[~terminal_mask].copy()
+        if performance_curve.empty:
+            performance_curve = equity_curve.copy()
+
+        nav = performance_curve["nav"].astype(float)
+        nav_full = equity_curve["nav"].astype(float)
+        portfolio_returns = performance_curve["portfolio_return"].astype(float).fillna(0.0)
+        benchmark_returns = performance_curve["benchmark_return"].astype(float).fillna(0.0)
         active_returns = portfolio_returns - benchmark_returns
 
-        total_return = float(nav.iloc[-1] / nav.iloc[0] - 1.0)
+        total_return = float(nav_full.iloc[-1] / nav.iloc[0] - 1.0)
         years = max(len(nav) / float(self.periods_per_year), 1.0 / self.periods_per_year)
-        cagr = float((nav.iloc[-1] / nav.iloc[0]) ** (1.0 / years) - 1.0)
+        cagr = float((nav_full.iloc[-1] / nav.iloc[0]) ** (1.0 / years) - 1.0)
 
         vol = float(portfolio_returns.std(ddof=0) * math.sqrt(self.periods_per_year))
         sharpe = float(
@@ -29,21 +39,21 @@ class BacktestMetrics:
         ) if portfolio_returns.std(ddof=0) > 0 else float("nan")
         tracking_error = float(active_returns.std(ddof=0) * math.sqrt(self.periods_per_year))
 
-        running_max = nav.cummax()
-        drawdown = nav / running_max - 1.0
+        running_max = nav_full.cummax()
+        drawdown = nav_full / running_max - 1.0
         max_drawdown = float(drawdown.min())
 
-        avg_ic = self._safe_mean(equity_curve.get("metric_information_coefficient"))
-        avg_breadth = self._safe_mean(equity_curve.get("metric_breadth_proxy"))
-        avg_tc = self._safe_mean(equity_curve.get("metric_transfer_coefficient"))
+        avg_ic = self._safe_mean(performance_curve.get("metric_information_coefficient"))
+        avg_breadth = self._safe_mean(performance_curve.get("metric_breadth_proxy"))
+        avg_tc = self._safe_mean(performance_curve.get("metric_transfer_coefficient"))
         if pd.isna(avg_tc):
-            avg_tc = self._safe_mean(equity_curve.get("metric_transfer_coefficient_proxy"))
-        avg_tc_corrected = self._safe_mean(equity_curve.get("metric_transfer_coefficient_corrected"))
+            avg_tc = self._safe_mean(performance_curve.get("metric_transfer_coefficient_proxy"))
+        avg_tc_corrected = self._safe_mean(performance_curve.get("metric_transfer_coefficient_corrected"))
         if pd.isna(avg_tc_corrected):
             avg_tc_corrected = avg_tc
-        avg_tc_legacy = self._safe_mean(equity_curve.get("metric_transfer_coefficient_legacy_proxy"))
+        avg_tc_legacy = self._safe_mean(performance_curve.get("metric_transfer_coefficient_legacy_proxy"))
         if pd.isna(avg_tc_legacy):
-            avg_tc_legacy = self._safe_mean(equity_curve.get("metric_transfer_coefficient_proxy"))
+            avg_tc_legacy = self._safe_mean(performance_curve.get("metric_transfer_coefficient_proxy"))
         implied_ir = self._implied_ir(avg_ic, avg_breadth, avg_tc)
         realized_active_ir = self._active_ir(active_returns)
 
@@ -51,7 +61,7 @@ class BacktestMetrics:
         executed_turnover_avg = self._safe_mean(equity_curve.get("executed_turnover"))
         turnover_drag_avg = self._safe_mean(equity_curve.get("turnover_constraint_drag"))
 
-        horizon_summary = self._horizon_summary(equity_curve)
+        horizon_summary = self._horizon_summary(performance_curve)
 
         summary = {
             "total_return": total_return,

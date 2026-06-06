@@ -6,7 +6,11 @@ from pathlib import Path
 import pandas as pd
 
 from activeportfolio.alpha import AlphaModel
-from activeportfolio.alpha.signals import FlatVolumeBreakoutAlpha
+from activeportfolio.alpha.signals import (
+    FlatVolumeBreakoutAlpha,
+    MomentumSkipRecentAlpha,
+    VolumeConfirmedMomentumAlpha,
+)
 from activeportfolio.alpha.profiles import (
     apply_alpha_profile,
     get_alpha_profile,
@@ -130,6 +134,22 @@ def _volume_shock_frame() -> tuple[pd.DataFrame, pd.DataFrame]:
         }
     )
     return closes, volumes
+
+
+def _momentum_skip_recent_frame() -> pd.DataFrame:
+    idx = pd.date_range("2025-01-01", periods=300, freq="D")
+    t = pd.Series(range(len(idx)), index=idx, dtype=float)
+    steady_winner = 100.0 + 0.50 * t
+    late_spike = pd.Series([100.0] * 270 + list(range(100, 130)), index=idx, dtype=float)
+    laggard = 100.0 + 0.05 * t
+    return pd.DataFrame(
+        {
+            "STEADY": steady_winner,
+            "SPIKE": late_spike,
+            "LAG": laggard,
+        },
+        index=idx,
+    )
 
 
 def _sector_momentum_frame() -> pd.DataFrame:
@@ -516,6 +536,54 @@ def test_alpha_model_registry_builds_new_signal_types():
     assert float(comps["vol_shock"].abs().sum()) > 0.0
 
 
+def test_momentum_skip_recent_prefers_persistent_momentum_over_recent_spike():
+    closes = _momentum_skip_recent_frame()
+    signal = MomentumSkipRecentAlpha(name="mom_skip", long_window=252, skip_window=21)
+    raw = signal.compute(closes)
+    assert float(raw.loc["STEADY"]) > float(raw.loc["SPIKE"])
+    assert float(raw.loc["STEADY"]) > float(raw.loc["LAG"])
+
+
+def test_volume_confirmed_momentum_requires_volume_expansion():
+    closes, volumes = _volume_shock_frame()
+    signal = VolumeConfirmedMomentumAlpha(
+        name="vol_confirmed",
+        momentum_window=21,
+        vol_short_window=5,
+        vol_long_window=20,
+    )
+    raw = signal.compute(closes, volumes=volumes)
+    assert float(raw.loc["AAA"]) > float(raw.loc["CCC"])
+    assert float(raw.loc["BBB"]) == 0.0
+
+
+def test_alpha_model_registry_builds_price_volume_candidate_signals():
+    closes, volumes = _volume_shock_frame()
+    model = AlphaModel.from_config(
+        {
+            "alpha_signal_registry": [
+                {
+                    "type": "momentum_skip_recent",
+                    "name": "mom_skip",
+                    "long_window": 21,
+                    "skip_window": 5,
+                },
+                {
+                    "type": "volume_confirmed_momentum",
+                    "name": "vol_confirmed",
+                    "momentum_window": 21,
+                    "vol_short_window": 5,
+                    "vol_long_window": 20,
+                },
+            ]
+        }
+    )
+    comps = model.component_scores(closes, volumes=volumes)
+    assert set(comps.columns) == {"mom_skip", "vol_confirmed"}
+    assert float(comps["mom_skip"].abs().sum()) > 0.0
+    assert float(comps["vol_confirmed"].abs().sum()) > 0.0
+
+
 def test_alpha_model_registry_builds_sector_momentum_top2(tmp_path: Path):
     closes = _sector_momentum_frame()
     cls_path = tmp_path / "classification.csv"
@@ -555,6 +623,7 @@ def test_alpha_profiles_apply_and_list():
     profile = get_alpha_profile("momentum_heavy")
     assert "alpha_signal_registry" in profile
     assert "alpha_signals" in profile
+    assert "mom_12m_skip_1m" in profile["alpha_signals"]
     assert len(profile["alpha_signal_registry"]) > 0
 
     cfg = {"foo": "bar"}
