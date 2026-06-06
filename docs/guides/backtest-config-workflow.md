@@ -122,6 +122,87 @@ In most cases:
 - full research baseline -> save JSON under `research/configs/`
 - framework-wide default behavior change -> update `activeportfolio/default_config.py`
 
+## How Alpha Weighting Works
+
+The backtest engine does not treat every configured signal equally. It computes each signal cross-sectionally, measures how that signal has performed recently, then combines signals with IC-aware weighting inside `AlphaModel.ic_weighted_alpha()`.
+
+Relevant code:
+- `activeportfolio/alpha/model.py`
+- `activeportfolio/backtest/engine.py`
+
+At each rebalance, the engine:
+
+1. Computes raw component scores for each signal in `alpha_signal_registry`.
+2. Standardizes them cross-sectionally.
+3. Looks up trailing realized IC history for each signal.
+4. Builds signal weights from those trailing IC statistics.
+5. Applies IC gates, correlation penalties, max-weight caps, and smoothing before combining the signals into one alpha score.
+
+The main per-signal diagnostics are:
+
+- `mean_ic`: trailing average information coefficient for that signal.
+- `ic_hit_rate`: fraction of trailing observations where IC was positive.
+- `ic_tstat`: trailing IC mean scaled by its dispersion and sample count.
+- `ic_n`: number of usable trailing IC observations.
+
+In `weighting_mode="positive"`, negative trailing IC is clipped to zero before the remaining weighting logic is applied. In `weighting_mode="signed"`, negative mean IC can remain negative and contribute with sign.
+
+## What The IC Gate Does
+
+The IC gate is a pre-filter on signal weights. A signal that fails the gate has its base signal weight set to zero before correlation penalty and normalization.
+
+This is useful when a signal is present in the registry but has weak recent evidence. Without a gate, weak signals can still pollute the mix just by existing. With a gate, only signals that clear recent quality thresholds are allowed to compete for weight.
+
+The key config knobs are:
+
+- `ic_gate_min_mean`: minimum trailing mean IC required for the signal to stay active.
+- `ic_gate_use_abs_mean`: if `true`, compare `abs(mean_ic)` to the threshold instead of signed mean IC.
+- `ic_gate_min_tstat`: minimum trailing IC t-stat required.
+- `ic_gate_min_hit_rate`: minimum share of positive IC observations required.
+- `ic_gate_min_samples`: minimum number of trailing IC observations required before significance-style gates are allowed to pass.
+
+Behavior notes:
+
+- If `ic_gate_min_mean` is set, the signal must clear that mean-IC threshold.
+- If `ic_gate_min_tstat` or `ic_gate_min_hit_rate` is set, the signal must also have at least `ic_gate_min_samples` observations.
+- If all signals are gated out, the combiner falls back to equal nonzero base weights as a safety mechanism instead of producing a dead portfolio.
+
+Plain-English interpretation:
+
+- `min_mean`: "is this signal good enough on average?"
+- `min_hit_rate`: "is it good often enough?"
+- `min_tstat`: "is the evidence strong enough to trust?"
+- `min_samples`: "do we have enough history to judge it at all?"
+
+## Example: Why Gated Volume-Confirmed Momentum Helped
+
+The recent SP500 baseline experiments are a useful example for new researchers.
+
+Baseline config:
+- `research/configs/backtest_current_baseline.json`
+
+Stronger candidate family:
+- `research/configs/backtest_current_baseline_vol_confirmed_for_breakout_gate.json`
+- `research/configs/backtest_current_baseline_vol_confirmed_for_breakout_gate_smooth035.json`
+- `research/configs/backtest_current_baseline_vol_confirmed_for_breakout_gate_te009.json`
+
+What changed relative to the baseline:
+
+- Removed `breakout_52w`.
+- Added `vol_confirmed_mom_1m`.
+- Raised `alpha_corr_penalty`.
+- Lowered `alpha_max_signal_weight`.
+- Turned on IC gating.
+
+Why that can help:
+
+- `vol_confirmed_mom_1m` only rewards short-horizon momentum when volume is expanding, so it is not just another plain momentum window.
+- The gate shuts off weak sleeves when their recent IC evidence is poor.
+- Higher correlation penalty and lower max signal weight reduce crowding among very similar momentum sleeves.
+- Additional smoothing can stabilize signal-weight changes from one rebalance to the next.
+
+For this reason, a gated replacement can outperform a larger ungated momentum stack even when the raw set of signals looks smaller or more restrictive.
+
 ## Recommended Workflow
 
 1. Start from `research/configs/backtest_current_baseline.json`.
