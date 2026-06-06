@@ -56,6 +56,9 @@ Use these as supporting context, then fold any accepted decisions back into a wo
 3. `docs/guides/csi300-ashare-data-guide.md`
 4. `docs/guides/sp500-snapshot-pipeline.md`
 
+Notes:
+- `docs/guides/backtest-config-workflow.md` now also explains IC-weighted alpha combination, IC gates, and how to interpret gated signal-promotion experiments.
+
 ### Evaluating Research Signals
 1. `docs/guides/alpha-signal-registry-guide.md`
 2. `docs/guides/alphalens-research-workflow.md`
