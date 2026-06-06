@@ -19,7 +19,7 @@
   "transaction_cost_bps": 5.0,
   "backtest_start_date": "2021-05-23",
   "backtest_end_date": "2026-04-24",
-  "backtest_output_dir": "eval_results/backtest/current_baseline",
+  "backtest_output_dir": "eval_results/backtest/current_baseline_momentum_legacy",
   "data_root": "data/market",
   "symbol_file": "data/universe/sp500/current/sp500_symbols.txt",
   "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
@@ -32,7 +32,7 @@
     "mom_12m",
     "mom_12m_skip_1m",
     "trend_12m_1m",
-    "vol_confirmed_mom_1m"
+    "breakout_52w"
   ],
   "alpha_signal_registry": [
     {
@@ -68,24 +68,22 @@
       "short_window": 21
     },
     {
-      "type": "volume_confirmed_momentum",
-      "name": "vol_confirmed_mom_1m",
-      "momentum_window": 21,
-      "vol_short_window": 5,
-      "vol_long_window": 20
+      "type": "breakout",
+      "name": "breakout_52w",
+      "window": 252
     }
   ],
   "ic_lookback_rebalances": 26,
   "ic_weighting_mode": "positive",
-  "alpha_corr_penalty": 0.40,
+  "alpha_corr_penalty": 0.3,
   "alpha_min_ic_weight": 0.0,
-  "alpha_weight_smoothing": 0.35,
-  "alpha_max_signal_weight": 0.25,
+  "alpha_weight_smoothing": 0.25,
+  "alpha_max_signal_weight": 0.35,
   "ic_ewm_decay": 0.85,
-  "ic_gate_min_mean": 0.005,
+  "ic_gate_min_mean": null,
   "ic_gate_use_abs_mean": false,
   "ic_gate_min_tstat": null,
-  "ic_gate_min_hit_rate": 0.52,
-  "ic_gate_min_samples": 12,
+  "ic_gate_min_hit_rate": null,
+  "ic_gate_min_samples": 8,
   "regime_switch_enabled": false
 }
