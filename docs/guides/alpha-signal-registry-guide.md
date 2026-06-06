@@ -103,6 +103,9 @@ CLI usage (single alpha selection by name):
 You can start from built-in presets:
 - `conservative`
 - `momentum_heavy`
+- `sp500_momentum_legacy`
+- `sp500_gated_vol_confirmed`
+- `sp500_gated_vol_confirmed_te009`
 - `mean_reversion_heavy`
 - `risk_on_crypto_anchor`
 - `diversified_sp500_v1`
@@ -138,7 +141,7 @@ from activeportfolio.default_config import DEFAULT_CONFIG
 from activeportfolio.alpha import apply_alpha_profile
 
 config = DEFAULT_CONFIG.copy()
-config = apply_alpha_profile(config, "diversified_sp500_v1")
+config = apply_alpha_profile(config, "sp500_gated_vol_confirmed")
 ```
 
 ## Backtest Config Files

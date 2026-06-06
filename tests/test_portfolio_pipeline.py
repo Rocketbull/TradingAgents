@@ -619,12 +619,26 @@ def test_alpha_profiles_apply_and_list():
     names = list_alpha_profiles()
     assert "conservative" in names
     assert "diversified_sp500_v1" in names
+    assert "sp500_momentum_legacy" in names
+    assert "sp500_gated_vol_confirmed" in names
+    assert "sp500_gated_vol_confirmed_te009" in names
 
     profile = get_alpha_profile("momentum_heavy")
     assert "alpha_signal_registry" in profile
     assert "alpha_signals" in profile
     assert "mom_12m_skip_1m" in profile["alpha_signals"]
     assert len(profile["alpha_signal_registry"]) > 0
+
+    legacy = get_alpha_profile("sp500_momentum_legacy")
+    assert "breakout_52w" in legacy["alpha_signals"]
+
+    promoted = get_alpha_profile("sp500_gated_vol_confirmed")
+    assert "vol_confirmed_mom_1m" in promoted["alpha_signals"]
+    assert "breakout_52w" not in promoted["alpha_signals"]
+    assert promoted["alpha_weight_smoothing"] == 0.35
+
+    te009 = get_alpha_profile("sp500_gated_vol_confirmed_te009")
+    assert te009["tracking_error_target"] == 0.09
 
     cfg = {"foo": "bar"}
     merged = apply_alpha_profile(cfg, "conservative")
