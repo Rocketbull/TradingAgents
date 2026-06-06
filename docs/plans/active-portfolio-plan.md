@@ -756,6 +756,15 @@ These are intentionally deferred while the project prioritizes framework complet
   - Purpose: reduce hard-switch instability and improve robustness to regime transitions.
   - Status: pending after rule-based v1 baseline.
 
+- TODO 7: Organize research and signal modules
+  - Rule: separate supported baseline alpha components from exploratory research signals and consolidate repeated research helpers behind clearer module boundaries.
+  - Required upgrades:
+    - define which signals stay in `activeportfolio/alpha/` versus move to research-only modules,
+    - reduce notebook/script import sprawl across `research/` and `activeportfolio/alpha/`,
+    - keep baseline/backtest configs pointed only at maintained signal entry points.
+  - Purpose: make alpha research easier to navigate without letting exploratory work blur production-facing module boundaries.
+  - Status: open.
+
 - Rationale for deferral:
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.
   - High-quality stable IC is not yet expected; hard gating now may hide integration issues.
