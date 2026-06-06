@@ -1,0 +1,51 @@
+{
+  "benchmark_symbol": "SPY",
+  "universe_source": "sp500_file",
+  "portfolio_universe_size": 503,
+  "symbol_file": "data/universe/sp500/current/sp500_symbols.txt",
+  "dynamic_liquidity_filter": true,
+  "liquidity_top_n": 100,
+  "liquidity_lookback_days": 60,
+  "benchmark_weight_mode": "liquidity_proxy",
+  "benchmark_weight_lookback_days": 60,
+  "rebalance_frequency": "monthly",
+  "max_weight": 0.08,
+  "active_weight_cap": 0.04,
+  "tracking_error_target": 0.1,
+  "sector_cap": null,
+  "turnover_limit": 0.5,
+  "risk_aversion": 3.0,
+  "transaction_cost_bps": 5.0,
+  "backtest_start_date": "2022-01-03",
+  "backtest_end_date": "2026-04-24",
+  "backtest_output_dir": "eval_results/backtest/sp500_vol_confirmed_mom_1m_smoke",
+  "data_root": "data/market",
+  "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
+  "fetch_missing_sector_data": false,
+  "auto_refresh_sector_cache_on_low_coverage": false,
+  "alpha_signals": [
+    "vol_confirmed_mom_1m"
+  ],
+  "alpha_signal_registry": [
+    {
+      "type": "volume_confirmed_momentum",
+      "name": "vol_confirmed_mom_1m",
+      "momentum_window": 21,
+      "vol_short_window": 5,
+      "vol_long_window": 20
+    }
+  ],
+  "ic_lookback_rebalances": 26,
+  "ic_weighting_mode": "positive",
+  "alpha_corr_penalty": 0.0,
+  "alpha_min_ic_weight": 0.0,
+  "alpha_weight_smoothing": 0.0,
+  "alpha_max_signal_weight": 1.0,
+  "ic_ewm_decay": 0.85,
+  "ic_gate_min_mean": null,
+  "ic_gate_use_abs_mean": false,
+  "ic_gate_min_tstat": null,
+  "ic_gate_min_hit_rate": null,
+  "ic_gate_min_samples": 8,
+  "regime_switch_enabled": false
+}

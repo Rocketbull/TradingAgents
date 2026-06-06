@@ -13,12 +13,14 @@ from .signals import (
     FlatVolumeBreakoutAlpha,
     LowVolAlpha,
     MomentumAlpha,
+    MomentumSkipRecentAlpha,
     RangePositionAlpha,
     ReversalAlpha,
     SectorMomentumTop2Alpha,
     TrailingLaggardBandAlpha,
     TrendAlpha,
     VolAdjMomentumAlpha,
+    VolumeConfirmedMomentumAlpha,
     VolumeShockAlpha,
     cross_sectional_zscore,
 )
@@ -54,6 +56,7 @@ class AlphaModel:
             MomentumAlpha(name="mom_3m", window=63),
             MomentumAlpha(name="mom_6m", window=126),
             MomentumAlpha(name="mom_12m", window=252),
+            MomentumSkipRecentAlpha(name="mom_12m_skip_1m", long_window=252, skip_window=21),
             ReversalAlpha(name="rev_1w", window=5),
             ReversalAlpha(name="rev_1m", window=21),
             LowVolAlpha(name="low_vol", window=60),
@@ -63,6 +66,12 @@ class AlphaModel:
             VolAdjMomentumAlpha(name="vol_adj_mom_3m", momentum_window=63, vol_window=21),
             RangePositionAlpha(name="range_pos_3m", window=63),
             VolumeShockAlpha(name="volume_shock_1w", price_window=5, vol_short_window=5, vol_long_window=20),
+            VolumeConfirmedMomentumAlpha(
+                name="vol_confirmed_mom_1m",
+                momentum_window=21,
+                vol_short_window=5,
+                vol_long_window=20,
+            ),
         ]
 
     @classmethod
@@ -73,6 +82,11 @@ class AlphaModel:
             "momentum": lambda d: MomentumAlpha(
                 name=str(d.get("name", "momentum")),
                 window=int(d.get("window", 21)),
+            ),
+            "momentum_skip_recent": lambda d: MomentumSkipRecentAlpha(
+                name=str(d.get("name", "momentum_skip_recent")),
+                long_window=int(d.get("long_window", 252)),
+                skip_window=int(d.get("skip_window", 21)),
             ),
             "reversal": lambda d: ReversalAlpha(
                 name=str(d.get("name", "reversal")),
@@ -107,6 +121,12 @@ class AlphaModel:
             "volume_shock": lambda d: VolumeShockAlpha(
                 name=str(d.get("name", "volume_shock")),
                 price_window=int(d.get("price_window", 5)),
+                vol_short_window=int(d.get("vol_short_window", 5)),
+                vol_long_window=int(d.get("vol_long_window", 20)),
+            ),
+            "volume_confirmed_momentum": lambda d: VolumeConfirmedMomentumAlpha(
+                name=str(d.get("name", "volume_confirmed_momentum")),
+                momentum_window=int(d.get("momentum_window", 21)),
                 vol_short_window=int(d.get("vol_short_window", 5)),
                 vol_long_window=int(d.get("vol_long_window", 20)),
             ),

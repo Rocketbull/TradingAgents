@@ -23,6 +23,22 @@ class MomentumAlpha(AlphaSignal):
 
 
 @dataclass(frozen=True)
+class MomentumSkipRecentAlpha(AlphaSignal):
+    name: str
+    long_window: int = 252
+    skip_window: int = 21
+
+    @property
+    def lookback(self) -> int:
+        return int(max(self.long_window, self.skip_window)) + 1
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        long_mom = closes.pct_change(int(self.long_window), fill_method=None).iloc[-1]
+        recent_mom = closes.pct_change(int(self.skip_window), fill_method=None).iloc[-1]
+        return long_mom - recent_mom
+
+
+@dataclass(frozen=True)
 class ReversalAlpha(AlphaSignal):
     name: str
     window: int
@@ -158,6 +174,38 @@ class VolumeShockAlpha(AlphaSignal):
         vol_ratio = (vol_short / vol_long.replace(0.0, np.nan)).iloc[-1]
         vol_shock = (vol_ratio - 1.0).clip(lower=0.0)
         score = price_ret * vol_shock
+        return score.reindex(closes.columns).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
+@dataclass(frozen=True)
+class VolumeConfirmedMomentumAlpha(AlphaSignal):
+    name: str
+    momentum_window: int = 21
+    vol_short_window: int = 5
+    vol_long_window: int = 20
+
+    @property
+    def lookback(self) -> int:
+        return int(max(self.momentum_window + 1, self.vol_long_window))
+
+    def compute(self, closes: pd.DataFrame, volumes: pd.DataFrame | None = None) -> pd.Series:
+        if closes.empty or volumes is None or volumes.empty:
+            return pd.Series(0.0, index=closes.columns)
+
+        common_cols = [c for c in closes.columns if c in volumes.columns]
+        if not common_cols:
+            return pd.Series(0.0, index=closes.columns)
+
+        c = closes[common_cols]
+        v = volumes[common_cols]
+        if c.shape[0] < self.lookback or v.shape[0] < int(self.vol_long_window):
+            return pd.Series(0.0, index=closes.columns)
+
+        momentum = c.pct_change(int(self.momentum_window), fill_method=None).iloc[-1]
+        vol_short = v.rolling(int(self.vol_short_window), min_periods=int(self.vol_short_window)).mean()
+        vol_long = v.rolling(int(self.vol_long_window), min_periods=int(self.vol_long_window)).mean()
+        vol_ratio = (vol_short / vol_long.replace(0.0, np.nan)).iloc[-1]
+        score = momentum * (vol_ratio - 1.0).clip(lower=0.0)
         return score.reindex(closes.columns).replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
 

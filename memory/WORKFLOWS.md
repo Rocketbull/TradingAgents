@@ -25,6 +25,12 @@ For constituent-driven downloads:
 2. Normalize Yahoo tickers by converting `.` to `-`.
 3. Prefer combining with downloader `--sp500` and default `--years 5`.
 
+## Benchmark ETF Workflow
+For benchmark and regime context symbols:
+1. Keep the tracked ETF seed list in `data/universe/etf/current/etf_symbols.txt`.
+2. Refresh ETF history with `tools/download_market_data.py --symbols-file data/universe/etf/current/etf_symbols.txt`.
+3. Include `SPY` at minimum so backtest benchmark/calendar data does not lag the main equity universe.
+
 ## A/B Protocol
 For model, optimizer, attribution, or backtest logic changes that can affect portfolio outputs:
 1. Run matched A/B backtests with fixed config and dataset.

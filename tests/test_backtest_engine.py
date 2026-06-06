@@ -20,6 +20,18 @@ def _close_frame() -> pd.DataFrame:
     )
 
 
+def _close_frame_business_days(start: str, end: str) -> pd.DataFrame:
+    idx = pd.bdate_range(start, end)
+    n = len(idx)
+    return pd.DataFrame(
+        {
+            "AAA": pd.Series(range(100, 100 + n), index=idx, dtype=float),
+            "BBB": pd.Series(range(120, 120 + n), index=idx, dtype=float),
+            "SPY": pd.Series(range(110, 110 + n), index=idx, dtype=float),
+        }
+    )
+
+
 def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     config = DEFAULT_CONFIG.copy()
     config.update(
@@ -58,6 +70,45 @@ def test_backtest_engine_run_with_injected_prices(tmp_path: Path):
     assert "unconstrained_active_weights" in result["rebalance_log"][0]
     assert "constrained_active_weights" in result["rebalance_log"][0]
     assert "transfer_coefficient" in result["rebalance_log"][0]["portfolio_metrics"]
+
+
+def test_backtest_engine_persists_terminal_monthly_rebalance(tmp_path: Path):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-05-30",
+            "rebalance_frequency": "monthly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_terminal_monthly"),
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+            "alpha_signal_registry": [
+                {"type": "momentum", "name": "mom_1m", "window": 5},
+            ],
+            "alpha_signals": ["mom_1m"],
+            "liquidity_top_n": 3,
+            "liquidity_lookback_days": 5,
+        }
+    )
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=_close_frame_business_days("2024-01-01", "2025-05-30"))
+
+    equity_curve = result["equity_curve"]
+    daily_market_value = result["daily_market_value"]
+    assert equity_curve.iloc[-1]["trade_date"] == "2025-05-30"
+    assert equity_curve.iloc[-1]["next_date"] == "2025-05-30"
+    assert int(equity_curve.iloc[-1]["terminal_snapshot"]) == 1
+    assert float(equity_curve.iloc[-1]["portfolio_return"]) == 0.0
+    assert result["rebalance_log"][-1]["trade_date"] == "2025-05-30"
+    assert (Path(result["output_dir"]) / "daily_market_value.csv").exists()
+    assert len(daily_market_value) > len(equity_curve)
+    assert daily_market_value.iloc[0]["trade_date"] == equity_curve.iloc[0]["trade_date"]
+    assert daily_market_value.iloc[-1]["trade_date"] == "2025-05-30"
+    assert abs(float(daily_market_value.iloc[-1]["portfolio_value"]) - float(result["summary"]["final_nav"])) < 1e-6
+    assert daily_market_value["is_rebalance"].sum() == len(result["rebalance_log"])
 
 
 def test_backtest_engine_honors_single_alpha_selection(tmp_path: Path):
