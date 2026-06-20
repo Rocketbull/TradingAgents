@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, Optional
 import pandas as pd
 
 from activeportfolio.alpha import AlphaModel, apply_alpha_profile
+from activeportfolio.dataflows.fred_macro import FREDMacroStore
 from activeportfolio.dataflows.yfinance_classification import build_symbol_maps
 from activeportfolio.default_config import DEFAULT_CONFIG
 from activeportfolio.portfolio import (
@@ -18,7 +19,13 @@ from activeportfolio.portfolio import (
     Rebalancer,
     RiskModel,
 )
-from activeportfolio.regime import RuleBasedRegimeModel
+from activeportfolio.regime import (
+    FREDMacroRegimeModel,
+    RuleBasedRegimeModel,
+    RuleBasedRegimeModelV2,
+    regime_stage_title,
+    summarize_regime,
+)
 
 from .accounting import PortfolioAccountant
 from .data_loader import LocalParquetDataLoader
@@ -224,6 +231,7 @@ class BacktestEngine:
         initial_capital = float(self.config.get("initial_capital", self.config.get("portfolio_value", 1_000_000.0)))
         construction_mode = str(self.config.get("portfolio_construction_mode", "optimizer")).lower()
         benchmark_hedge_ratio = max(0.0, float(self.config.get("benchmark_hedge_ratio", 0.0)))
+        base_benchmark_overlay = float(self.config.get("benchmark_overlay", 0.0)) - benchmark_hedge_ratio
         current_weights = {s: 0.0 for s in tradable_prices.columns}
         init_universe = per_date_universe.get(rebalance_dates[0], list(tradable_prices.columns))
         current_weights.update(self._equal_weights(init_universe))
@@ -311,12 +319,16 @@ class BacktestEngine:
             regime["switched"] = bool(switched)
             regime["switch_reason"] = str(switch_reason)
             regime["hold_count"] = int(applied_regime_hold_count)
+            regime_benchmark_overlay = self._regime_benchmark_overlay(regime["label"])
+            effective_benchmark_overlay = base_benchmark_overlay + regime_benchmark_overlay
 
             active_profile = None
             if construction_mode == "equal_weight":
                 alpha_scores = pd.Series(0.0, index=history.columns, dtype=float)
                 alpha_weights = {}
                 raw_alpha_scores = pd.Series(0.0, index=history.columns, dtype=float)
+                components = pd.DataFrame(index=history.columns)
+                raw_components = pd.DataFrame(index=history.columns)
             else:
                 signals = list(
                     self.config.get("alpha_signals", ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"])
@@ -468,7 +480,7 @@ class BacktestEngine:
                 bench_now = float(benchmark_series.loc[rebalance_date]) if rebalance_date in benchmark_series.index else 0.0
                 bench_next = float(benchmark_series.loc[next_date]) if next_date in benchmark_series.index else 0.0
                 benchmark_return = (bench_next / bench_now - 1.0) if bench_now > 0 else 0.0
-                hedge_return = -benchmark_hedge_ratio * benchmark_return
+                hedge_return = effective_benchmark_overlay * benchmark_return
                 portfolio_return += hedge_return
                 nav_after_period = nav_after_costs * (1.0 + portfolio_return)
                 if construction_mode == "equal_weight":
@@ -502,6 +514,8 @@ class BacktestEngine:
                 "cost": total_cost,
                 "construction_mode": construction_mode,
                 "benchmark_hedge_ratio": benchmark_hedge_ratio,
+                "benchmark_overlay": effective_benchmark_overlay,
+                "regime_benchmark_overlay": regime_benchmark_overlay,
                 "hedge_return": hedge_return,
                 "regime_label": regime["label"],
                 "regime_raw_label": regime["raw_label"],
@@ -536,6 +550,8 @@ class BacktestEngine:
                     "benchmark_weights": benchmark_all_weights,
                     "construction_mode": construction_mode,
                     "benchmark_hedge_ratio": benchmark_hedge_ratio,
+                    "benchmark_overlay": effective_benchmark_overlay,
+                    "regime_benchmark_overlay": regime_benchmark_overlay,
                     "hedge_return": hedge_return,
                     "unconstrained_active_weights": unconstrained_active_weights,
                     "constrained_active_weights": constrained_active_weights,
@@ -807,23 +823,73 @@ class BacktestEngine:
             schedule[d] = list(symbols)
         return schedule
 
-    def _build_regime_model(self) -> RuleBasedRegimeModel | None:
+    def _build_regime_model(self) -> RuleBasedRegimeModel | RuleBasedRegimeModelV2 | FREDMacroRegimeModel | None:
         if not bool(self.config.get("regime_switch_enabled", False)):
             return None
         model_type = str(self.config.get("regime_model_type", "rule_v1")).lower()
-        if model_type != "rule_v1":
-            raise ValueError(f"Unsupported regime_model_type '{model_type}'.")
-        return RuleBasedRegimeModel(
-            benchmark_symbol=str(self.config.get("regime_benchmark_symbol", self.config.get("benchmark_symbol", "SPY"))).upper(),
-            risk_symbol=str(self.config.get("regime_risk_symbol", "BTC-USD")).upper(),
-            defensive_symbol=str(self.config.get("regime_defensive_symbol", "GLD")).upper(),
-            short_window=int(self.config.get("regime_short_window", 21)),
-            long_window=int(self.config.get("regime_long_window", 63)),
-            relative_window=int(self.config.get("regime_relative_window", 63)),
-            risk_on_threshold=float(self.config.get("regime_risk_on_threshold", 0.15)),
-            risk_off_threshold=float(self.config.get("regime_risk_off_threshold", -0.15)),
-            temperature=float(self.config.get("regime_temperature", 0.20)),
-        )
+        if model_type == "rule_v1":
+            return RuleBasedRegimeModel(
+                benchmark_symbol=str(self.config.get("regime_benchmark_symbol", self.config.get("benchmark_symbol", "SPY"))).upper(),
+                risk_symbol=str(self.config.get("regime_risk_symbol", "BTC-USD")).upper(),
+                defensive_symbol=str(self.config.get("regime_defensive_symbol", "GLD")).upper(),
+                short_window=int(self.config.get("regime_short_window", 21)),
+                long_window=int(self.config.get("regime_long_window", 63)),
+                relative_window=int(self.config.get("regime_relative_window", 63)),
+                risk_on_threshold=float(self.config.get("regime_risk_on_threshold", 0.15)),
+                risk_off_threshold=float(self.config.get("regime_risk_off_threshold", -0.15)),
+                temperature=float(self.config.get("regime_temperature", 0.20)),
+            )
+        if model_type == "rule_v2":
+            speculative_symbols = tuple(
+                str(s).upper()
+                for s in self.config.get("regime_v2_speculative_symbols", ["BTC-USD", "ETH-USD"])
+                if str(s).strip()
+            )
+            return RuleBasedRegimeModelV2(
+                benchmark_symbol=str(self.config.get("regime_benchmark_symbol", self.config.get("benchmark_symbol", "SPY"))).upper(),
+                duration_symbol=str(self.config.get("regime_v2_duration_symbol", "TLT")).upper(),
+                defensive_symbol=str(self.config.get("regime_v2_defensive_symbol", "GLD")).upper(),
+                growth_symbol=str(self.config.get("regime_v2_growth_symbol", "XLK")).upper(),
+                inflation_symbol=str(self.config.get("regime_v2_inflation_symbol", "XLE")).upper(),
+                speculative_symbols=speculative_symbols,
+                short_window=int(self.config.get("regime_short_window", 21)),
+                long_window=int(self.config.get("regime_long_window", 63)),
+                relative_window=int(self.config.get("regime_relative_window", 63)),
+                risk_on_threshold=float(self.config.get("regime_risk_on_threshold", 0.15)),
+                risk_off_threshold=float(self.config.get("regime_risk_off_threshold", -0.15)),
+                temperature=float(self.config.get("regime_temperature", 0.20)),
+            )
+        if model_type == "macro_v1":
+            store = FREDMacroStore(
+                root_dir=str(self.config.get("regime_macro_data_root", "data/macro/fred")),
+                auto_download=bool(self.config.get("regime_macro_auto_download", True)),
+            )
+            return FREDMacroRegimeModel(
+                macro_store=store,
+                macro_lookback_days=int(self.config.get("regime_macro_lookback_days", 800)),
+                unemployment_series_id=str(self.config.get("regime_macro_unemployment_series_id", "UNRATE")).upper(),
+                inflation_series_id=str(self.config.get("regime_macro_inflation_series_id", "CPIAUCSL")).upper(),
+                growth_series_id=str(self.config.get("regime_macro_growth_series_id", "INDPRO")).upper(),
+                curve_series_id=str(self.config.get("regime_macro_curve_series_id", "T10Y2Y")).upper(),
+                policy_series_id=str(self.config.get("regime_macro_policy_series_id", "FEDFUNDS")).upper(),
+                stress_series_id=str(self.config.get("regime_macro_stress_series_id", "VIXCLS")).upper(),
+                unemployment_lag_days=int(self.config.get("regime_macro_unemployment_lag_days", 35)),
+                inflation_lag_days=int(self.config.get("regime_macro_inflation_lag_days", 35)),
+                growth_lag_days=int(self.config.get("regime_macro_growth_lag_days", 35)),
+                curve_lag_days=int(self.config.get("regime_macro_curve_lag_days", 1)),
+                policy_lag_days=int(self.config.get("regime_macro_policy_lag_days", 35)),
+                stress_lag_days=int(self.config.get("regime_macro_stress_lag_days", 1)),
+                risk_on_threshold=float(self.config.get("regime_risk_on_threshold", 0.15)),
+                risk_off_threshold=float(self.config.get("regime_risk_off_threshold", -0.15)),
+                temperature=float(self.config.get("regime_temperature", 0.20)),
+                growth_weight=float(self.config.get("regime_macro_growth_weight", 0.25)),
+                labor_weight=float(self.config.get("regime_macro_labor_weight", 0.20)),
+                inflation_weight=float(self.config.get("regime_macro_inflation_weight", 0.15)),
+                curve_weight=float(self.config.get("regime_macro_curve_weight", 0.15)),
+                policy_weight=float(self.config.get("regime_macro_policy_weight", 0.10)),
+                stress_weight=float(self.config.get("regime_macro_stress_weight", 0.15)),
+            )
+        raise ValueError(f"Unsupported regime_model_type '{model_type}'.")
 
     def _detect_regime(self, close_history: pd.DataFrame) -> Dict[str, Any]:
         if self.regime_model is None:
@@ -897,6 +963,18 @@ class BacktestEngine:
         signals = list(cfg.get("alpha_signals", model.available_signals()))
         return model, signals, profile
 
+    def _regime_benchmark_overlay(self, label: str) -> float:
+        mapping = self.config.get("regime_benchmark_overlays", {})
+        if not isinstance(mapping, dict):
+            return 0.0
+        value = mapping.get(label)
+        if value is None:
+            return 0.0
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
     def _alpha_context_symbols(self) -> list[str]:
         return self._alpha_context_symbols_from_config(self.config)
 
@@ -930,6 +1008,20 @@ class BacktestEngine:
     def _regime_context_symbols(self) -> list[str]:
         if self.regime_model is None:
             return []
+        model_type = str(self.config.get("regime_model_type", "rule_v1")).lower()
+        if model_type == "rule_v2":
+            out = [
+                str(self.config.get("regime_v2_duration_symbol", "TLT")).upper(),
+                str(self.config.get("regime_v2_defensive_symbol", "GLD")).upper(),
+                str(self.config.get("regime_v2_growth_symbol", "XLK")).upper(),
+                str(self.config.get("regime_v2_inflation_symbol", "XLE")).upper(),
+            ]
+            out.extend(
+                str(s).upper()
+                for s in self.config.get("regime_v2_speculative_symbols", ["BTC-USD", "ETH-USD"])
+                if str(s).strip()
+            )
+            return [s for s in out if s]
         out = [
             str(self.config.get("regime_risk_symbol", "BTC-USD")).upper(),
             str(self.config.get("regime_defensive_symbol", "GLD")).upper(),
@@ -1096,6 +1188,8 @@ class BacktestEngine:
             regime = dict(current_row.get("regime", {}))
             regime_label = str(regime.get("label", "static"))
             regime_reason = str(regime.get("switch_reason", "n/a"))
+            regime_title = regime_stage_title(regime_label)
+            regime_summary = summarize_regime(regime)
 
             sections.extend(
                 [
@@ -1130,6 +1224,10 @@ class BacktestEngine:
                         f"Regime posture: `{regime_label}` "
                         f"(switch_reason=`{regime_reason}`, hold_count={int(regime.get('hold_count', 0))})."
                     ),
+                    "",
+                    "### Macro Regime",
+                    f"Macro stage: {regime_title}.",
+                    regime_summary,
                 ]
             )
 

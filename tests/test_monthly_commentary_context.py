@@ -67,6 +67,8 @@ def test_build_monthly_commentary_context_extracts_latest_period(tmp_path: Path)
     assert context["rebalance"]["top_trims"][0]["symbol"] == "BBB"
     assert context["rebalance"]["top_holdings_after_rebalance"][0]["symbol"] == "CCC"
     assert context["rebalance"]["signal_emphasis"][0]["symbol"] == "mom_3m"
+    assert context["regime"]["title"] == "Static"
+    assert "static allocation backdrop" in context["regime"]["summary"]
 
 
 def test_build_monthly_commentary_context_uses_terminal_row_for_holdings_only(tmp_path: Path) -> None:

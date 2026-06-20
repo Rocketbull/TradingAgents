@@ -177,8 +177,20 @@ def main() -> None:
     for c in [cfg_a, cfg_b]:
         anchors.update(alpha_context_symbols_from_config(c))
         if bool(c.get("regime_switch_enabled", False)):
-            anchors.add(str(c.get("regime_risk_symbol", "BTC-USD")).upper())
-            anchors.add(str(c.get("regime_defensive_symbol", "GLD")).upper())
+            model_type = str(c.get("regime_model_type", "rule_v1")).lower()
+            if model_type == "rule_v2":
+                anchors.add(str(c.get("regime_v2_duration_symbol", "TLT")).upper())
+                anchors.add(str(c.get("regime_v2_defensive_symbol", "GLD")).upper())
+                anchors.add(str(c.get("regime_v2_growth_symbol", "XLK")).upper())
+                anchors.add(str(c.get("regime_v2_inflation_symbol", "XLE")).upper())
+                anchors.update(
+                    str(s).upper()
+                    for s in c.get("regime_v2_speculative_symbols", ["BTC-USD", "ETH-USD"])
+                    if str(s).strip()
+                )
+            else:
+                anchors.add(str(c.get("regime_risk_symbol", "BTC-USD")).upper())
+                anchors.add(str(c.get("regime_defensive_symbol", "GLD")).upper())
     anchors = {s for s in anchors if s}
 
     data_root = Path(args.data_root)
