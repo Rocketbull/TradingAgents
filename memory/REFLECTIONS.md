@@ -13,3 +13,6 @@ When .conda/tradingagents/bin/python is absent in this checkout, use /home/rocke
 
 ## 2026-06-06: Align viewer changes with backtest artifacts [backtest,viewer,memory]
 When a backtest viewer starts depending on a new artifact such as daily_market_value.csv, update the producing backtest runs before changing default notebook selection. Validate the target run directory, not just the notebook code: confirm the artifact exists, confirm row density matches the intended cadence, and prefer immutable dated snapshot runs over mutable aliases like current_baseline when auto-selecting defaults.
+
+## 2026-06-20: Attach lifecycle metadata at artifact creation [artifacts,tooling,cleanup]
+Disposable backtest and research outputs are hard to prune safely after the fact. Write manifest status/keep metadata when runs are created, and let pruning tools fall back to explicit decision registries only for older historical runs.

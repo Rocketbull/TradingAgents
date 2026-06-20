@@ -209,10 +209,13 @@ def _build_config_catalog(
     config_decisions: dict[str, dict[str, Any]],
 ) -> pd.DataFrame:
     records: list[dict[str, Any]] = []
-    for config_path in sorted(config_root.glob("backtest_*.json")):
+    for config_path in sorted(config_root.rglob("backtest_*.json")):
         if config_path.name == "backtest_decisions.json":
             continue
         payload = _safe_read_json(config_path)
+        relative_parent = config_path.relative_to(config_root).parent
+        if any(part == "archive" for part in relative_parent.parts):
+            continue
         config_key = config_path.stem.removeprefix("backtest_")
         output_dir = str(payload.get("backtest_output_dir") or "")
         canonical_run_name = Path(output_dir).name if output_dir else None
@@ -250,6 +253,7 @@ def _build_config_catalog(
             {
                 "config_key": config_key,
                 "config_path": str(config_path),
+                "config_group": "." if str(relative_parent) == "." else str(relative_parent),
                 "canonical_run_name": canonical_run_name,
                 "decision_status": decision.get("status", "unreviewed"),
                 "decision_note": decision.get("note"),

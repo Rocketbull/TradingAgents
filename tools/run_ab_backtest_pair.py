@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import platform
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import subprocess
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +39,17 @@ def parse_args() -> argparse.Namespace:
         "--no-auto-adjust-start-for-warmup",
         action="store_true",
         help="Disable auto-adjustment; keep requested start date.",
+    )
+    p.add_argument(
+        "--run-status",
+        default="scratch",
+        help="Lifecycle status to record in the pair manifest (e.g. scratch, candidate, bad_test).",
+    )
+    p.add_argument(
+        "--keep-run",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to mark this pair run as retained in manifest.json.",
     )
     return p.parse_args()
 
@@ -128,6 +141,14 @@ def resolve_config(base_config: dict[str, Any], overrides: dict[str, Any]) -> di
     if alpha_profile:
         config = apply_alpha_profile(config, alpha_profile, overwrite=True)
     return config
+
+
+def _git_head() -> str | None:
+    try:
+        out = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+    except Exception:
+        return None
+    return out.decode("utf-8").strip()
 
 
 def main() -> None:
@@ -244,6 +265,32 @@ def main() -> None:
     )
     (pair_dir / "config_a.json").write_text(json.dumps(cfg_a, indent=2), encoding="utf-8")
     (pair_dir / "config_b.json").write_text(json.dumps(cfg_b, indent=2), encoding="utf-8")
+    (pair_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "mode": "backtest_pair",
+                "pair_name": args.pair_name,
+                "created_at_utc": datetime.now(tz=timezone.utc).isoformat(),
+                "command": " ".join(sys.argv),
+                "python_version": platform.python_version(),
+                "git_head": _git_head(),
+                "status": str(args.run_status).strip() or "scratch",
+                "keep": bool(args.keep_run),
+                "artifacts": {
+                    "comparison_json": str(pair_dir / "comparison.json"),
+                    "config_a_json": str(pair_dir / "config_a.json"),
+                    "config_b_json": str(pair_dir / "config_b.json"),
+                    "run_a_dir": str(run_a_dir),
+                    "run_b_dir": str(run_b_dir),
+                },
+                "requested_window": pair_payload["requested_window"],
+                "actual_window": pair_payload["actual_window"],
+                "labels": pair_payload["labels"],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
     print(f"[ok] pair_dir: {pair_dir}")
     print(

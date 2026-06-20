@@ -13,7 +13,7 @@ Active Portfolio is a Python project for market data workflows, alpha research, 
 ## Environment
 - Python requirement: `>=3.10`.
 - Use project environment binaries directly from `.conda/tradingagents/bin/`.
-- If `.conda/tradingagents/bin/` is missing in the current checkout, use the validated fallback interpreter at `/home/rockebull/mambaforge/bin/python`.
+- If `.conda/tradingagents/bin/` is missing in the current checkout, use the validated fallback interpreter at `/home/rockebull/miniconda3/envs/tradingagents/bin/python`.
 - When the fallback path is needed once in a task, reuse it for the rest of the repo work instead of re-probing interpreters.
 - Dependency install command: `.conda/tradingagents/bin/pip install -r requirements.txt`.
 - Optional editable install: `.conda/tradingagents/bin/pip install -e .`.

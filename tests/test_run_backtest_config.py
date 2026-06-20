@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from tools.run_backtest import build_config, load_config_json
+from tools.run_backtest import build_config, build_run_manifest, load_config_json
 
 
 def test_load_config_json_requires_object(tmp_path: Path) -> None:
@@ -109,3 +109,38 @@ def test_build_config_cli_overrides_json(tmp_path: Path) -> None:
     assert config["alpha_signals"] == ["breakout_52w"]
     assert config["dynamic_liquidity_filter"] is False
     assert config["monthly_rebalance_offset_days"] == -2
+
+
+def test_build_run_manifest_captures_lifecycle_and_artifacts(tmp_path: Path) -> None:
+    out_dir = tmp_path / "eval_results" / "backtest" / "sample_run"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    config = {
+        "backtest_start_date": "2021-05-23",
+        "backtest_end_date": "2026-06-20",
+        "benchmark_symbol": "SPY",
+    }
+    summary = {
+        "total_return": 1.23,
+        "sharpe": 1.11,
+        "rebalance_points": 42,
+        "final_nav": 1234567.0,
+    }
+
+    manifest = build_run_manifest(
+        out_dir=out_dir,
+        config=config,
+        config_json="research/configs/backtest_current_baseline.json",
+        summary=summary,
+        run_status="candidate",
+        keep_run=True,
+    )
+
+    assert manifest["mode"] == "backtest"
+    assert manifest["run_name"] == "sample_run"
+    assert manifest["status"] == "candidate"
+    assert manifest["keep"] is True
+    assert manifest["config_json"] == "research/configs/backtest_current_baseline.json"
+    assert manifest["start_date"] == "2021-05-23"
+    assert manifest["end_date"] == "2026-06-20"
+    assert manifest["artifacts"]["summary_json"].endswith("summary.json")
+    assert manifest["summary"]["total_return"] == 1.23

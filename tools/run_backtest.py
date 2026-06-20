@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
+import platform
 from pathlib import Path
+import subprocess
 import sys
 from typing import Any
 
@@ -134,6 +137,17 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Trading-day offset from month-end for monthly rebalances. Negative is before month-end.",
     )
+    parser.add_argument(
+        "--run-status",
+        default="scratch",
+        help="Lifecycle status to record in manifest.json (e.g. scratch, candidate, active, bad_test).",
+    )
+    parser.add_argument(
+        "--keep-run",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to mark this run as retained in manifest.json.",
+    )
     args = parser.parse_args()
     if args.start_date is None and args.end_date is None and args.config_json is None:
         parser.error("--start-date and --end-date are required unless provided via --config-json.")
@@ -177,6 +191,61 @@ def build_config(args: argparse.Namespace) -> dict[str, Any]:
     return config
 
 
+def _git_head() -> str | None:
+    try:
+        out = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+    except Exception:
+        return None
+    return out.decode("utf-8").strip()
+
+
+def build_run_manifest(
+    *,
+    out_dir: Path,
+    config: dict[str, Any],
+    config_json: str | None,
+    summary: dict[str, Any],
+    run_status: str,
+    keep_run: bool,
+) -> dict[str, Any]:
+    return {
+        "mode": "backtest",
+        "run_name": out_dir.name,
+        "created_at_utc": datetime.now(tz=timezone.utc).isoformat(),
+        "command": " ".join(sys.argv),
+        "python_version": platform.python_version(),
+        "git_head": _git_head(),
+        "status": str(run_status).strip() or "scratch",
+        "keep": bool(keep_run),
+        "config_json": config_json,
+        "start_date": config.get("backtest_start_date"),
+        "end_date": config.get("backtest_end_date"),
+        "benchmark_symbol": config.get("benchmark_symbol"),
+        "artifacts": {
+            "config_snapshot_json": str(out_dir / "config_snapshot.json"),
+            "summary_json": str(out_dir / "summary.json"),
+            "equity_curve_csv": str(out_dir / "equity_curve.csv"),
+            "weights_history_csv": str(out_dir / "weights_history.csv"),
+            "orders_history_csv": str(out_dir / "orders_history.csv"),
+            "rebalance_log_jsonl": str(out_dir / "rebalance_log.jsonl"),
+            "daily_market_value_csv": str(out_dir / "daily_market_value.csv"),
+            "monthly_commentary_md": str(out_dir / "monthly_commentary.md"),
+        },
+        "summary": {
+            "total_return": summary.get("total_return"),
+            "cagr": summary.get("cagr"),
+            "sharpe": summary.get("sharpe"),
+            "max_drawdown": summary.get("max_drawdown"),
+            "tracking_error": summary.get("tracking_error"),
+            "realized_active_information_ratio": summary.get(
+                "realized_active_information_ratio"
+            ),
+            "rebalance_points": summary.get("rebalance_points"),
+            "final_nav": summary.get("final_nav"),
+        },
+    }
+
+
 def main() -> None:
     args = parse_args()
     config = build_config(args)
@@ -194,6 +263,17 @@ def main() -> None:
 
     summary_path = out_dir / "summary.json"
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    config_snapshot_path = out_dir / "config_snapshot.json"
+    config_snapshot_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
+    manifest = build_run_manifest(
+        out_dir=out_dir,
+        config=config,
+        config_json=args.config_json,
+        summary=summary,
+        run_status=args.run_status,
+        keep_run=args.keep_run,
+    )
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
 if __name__ == "__main__":
