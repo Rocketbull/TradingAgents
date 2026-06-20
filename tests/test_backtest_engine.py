@@ -98,6 +98,7 @@ def test_backtest_engine_persists_terminal_monthly_rebalance(tmp_path: Path):
 
     equity_curve = result["equity_curve"]
     daily_market_value = result["daily_market_value"]
+    commentary_path = Path(result["output_dir"]) / "monthly_commentary.md"
     assert equity_curve.iloc[-1]["trade_date"] == "2025-05-30"
     assert equity_curve.iloc[-1]["next_date"] == "2025-05-30"
     assert int(equity_curve.iloc[-1]["terminal_snapshot"]) == 1
@@ -109,6 +110,45 @@ def test_backtest_engine_persists_terminal_monthly_rebalance(tmp_path: Path):
     assert daily_market_value.iloc[-1]["trade_date"] == "2025-05-30"
     assert abs(float(daily_market_value.iloc[-1]["portfolio_value"]) - float(result["summary"]["final_nav"])) < 1e-6
     assert daily_market_value["is_rebalance"].sum() == len(result["rebalance_log"])
+    assert commentary_path.exists()
+    commentary = commentary_path.read_text(encoding="utf-8")
+    assert "# Monthly Rebalance Commentary" in commentary
+    assert "### MoM Benchmark Performance" in commentary
+    assert "### Portfolio Performance" in commentary
+    assert "### Rebalance Decisions" in commentary
+    assert "`SPY` returned" in commentary
+
+
+def test_monthly_rebalance_offset_days_shifts_from_month_end() -> None:
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "rebalance_frequency": "monthly",
+            "monthly_rebalance_offset_days": -2,
+        }
+    )
+    engine = BacktestEngine(config)
+    idx = pd.bdate_range("2024-01-01", "2024-03-31")
+    dates = engine._rebalance_dates(idx)
+    assert [d.strftime("%Y-%m-%d") for d in dates] == [
+        "2024-01-29",
+        "2024-02-27",
+        "2024-03-27",
+    ]
+
+
+def test_monthly_rebalance_positive_offset_clamps_within_month() -> None:
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "rebalance_frequency": "monthly",
+            "monthly_rebalance_offset_days": 3,
+        }
+    )
+    engine = BacktestEngine(config)
+    idx = pd.bdate_range("2024-01-01", "2024-01-31")
+    dates = engine._rebalance_dates(idx)
+    assert [d.strftime("%Y-%m-%d") for d in dates] == ["2024-01-31"]
 
 
 def test_backtest_engine_honors_single_alpha_selection(tmp_path: Path):
@@ -137,6 +177,28 @@ def test_backtest_engine_honors_single_alpha_selection(tmp_path: Path):
     first = result["rebalance_log"][0]
     assert set(first["alpha_weights"].keys()) == {"mom_1m"}
     assert set(first["signal_ic"].keys()) == {"mom_1m"}
+
+
+def test_backtest_engine_applies_named_alpha_profile():
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "alpha_profile": "csi300_hybrid_v1",
+        }
+    )
+    engine = BacktestEngine(config)
+    assert engine.config["alpha_profile"] == "csi300_hybrid_v1"
+    assert engine.alpha_model.available_signals() == [
+        "rev_1w",
+        "rev_1m",
+        "low_vol",
+        "downside_vol",
+        "mom_1m",
+        "mom_3m",
+        "vol_adj_mom_3m",
+        "vol_confirmed_mom_1m",
+        "volume_shock_1w",
+    ]
 
 
 def test_backtest_engine_regime_switch_logs_state(tmp_path: Path):

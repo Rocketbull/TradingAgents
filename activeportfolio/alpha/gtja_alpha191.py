@@ -14,6 +14,7 @@ from activeportfolio.dataflows.market_data_store import find_history_parquet
 DEFAULT_US_BENCHMARK = "SPY"
 DEFAULT_SP500_SYMBOL_FILE = Path("data/universe/sp500/current/sp500_symbols.txt")
 DEFAULT_CSI300_SYMBOL_FILE = Path("data/universe/csi300/current/csi300_weights.csv")
+DEFAULT_CSI500_SYMBOL_FILE = Path("data/universe/csi500/current/csi500_weights.csv")
 SUPPORTED_PRICE_FIELDS = {
     "open",
     "close",
@@ -46,6 +47,7 @@ def get_index_stocks(
     *,
     symbol_file: str | Path | None = None,
     csi300_file: str | Path = DEFAULT_CSI300_SYMBOL_FILE,
+    csi500_file: str | Path = DEFAULT_CSI500_SYMBOL_FILE,
 ) -> list[str]:
     """Resolve a benchmark/universe handle into tradable constituent symbols."""
     if isinstance(index, (list, tuple, set, pd.Index, np.ndarray)):
@@ -81,6 +83,22 @@ def get_index_stocks(
         ]
         if not symbols:
             raise ValueError(f"No CSI300 constituents found in {path}")
+        return list(dict.fromkeys(symbols))
+
+    if label in {"CSI500", "000905", "000905.SH", "000905.XSHG", "ZZ500"}:
+        path = Path(csi500_file)
+        if not path.exists():
+            raise FileNotFoundError(f"CSI500 constituent file not found: {path}")
+        frame = pd.read_csv(path)
+        if "symbol" not in frame.columns:
+            raise ValueError(f"CSI500 constituent file missing 'symbol' column: {path}")
+        symbols = [
+            str(symbol).strip().upper()
+            for symbol in frame["symbol"].tolist()
+            if str(symbol).strip()
+        ]
+        if not symbols:
+            raise ValueError(f"No CSI500 constituents found in {path}")
         return list(dict.fromkeys(symbols))
 
     return [label]

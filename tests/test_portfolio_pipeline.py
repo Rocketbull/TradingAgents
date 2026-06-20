@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -289,6 +290,48 @@ def test_optimizer_enforces_sector_active_weight_cap():
     tech_w = float(target["AAA"]) + float(target["BBB"])
     util_w = float(target["CCC"]) + float(target["SPY"])
     # Benchmark sector totals are 0.5 / 0.5; cap is +/- 0.05.
+    assert 0.449999 <= tech_w <= 0.550001
+    assert 0.449999 <= util_w <= 0.550001
+
+
+def test_optimizer_retries_sector_active_projection_solver():
+    import cvxpy as cp
+
+    closes = _price_frame()
+    cov = RiskModel().covariance(closes)
+    alpha = pd.Series({"AAA": 5.0, "BBB": 4.0, "CCC": -1.0, "SPY": -2.0})
+    benchmark = {symbol: 0.25 for symbol in alpha.index}
+    sectors = {
+        "AAA": "Tech",
+        "BBB": "Tech",
+        "CCC": "Utilities",
+        "SPY": "Utilities",
+    }
+    optimizer = PortfolioOptimizer(
+        max_weight=0.80,
+        turnover_limit=1.0,
+        sector_active_weight_cap=0.05,
+    )
+
+    original_solve = cp.Problem.solve
+
+    def flaky_solve(self, *args, **kwargs):
+        solver = kwargs.get("solver")
+        if solver == cp.OSQP:
+            return None
+        return original_solve(self, *args, **kwargs)
+
+    with patch.object(cp.Problem, "solve", new=flaky_solve):
+        target = optimizer.optimize(
+            alpha_scores=alpha,
+            covariance=cov,
+            current_weights=benchmark,
+            benchmark_weights=benchmark,
+            sector_map=sectors,
+        )
+
+    tech_w = float(target["AAA"]) + float(target["BBB"])
+    util_w = float(target["CCC"]) + float(target["SPY"])
     assert 0.449999 <= tech_w <= 0.550001
     assert 0.449999 <= util_w <= 0.550001
 
@@ -622,6 +665,9 @@ def test_alpha_profiles_apply_and_list():
     assert "sp500_momentum_legacy" in names
     assert "sp500_gated_vol_confirmed" in names
     assert "sp500_gated_vol_confirmed_te009" in names
+    assert "csi500_reversal_liquidity_v1" in names
+    assert "csi500_volume_breakout_v1" in names
+    assert "csi500_hybrid_v2" in names
 
     profile = get_alpha_profile("momentum_heavy")
     assert "alpha_signal_registry" in profile
@@ -639,6 +685,9 @@ def test_alpha_profiles_apply_and_list():
 
     te009 = get_alpha_profile("sp500_gated_vol_confirmed_te009")
     assert te009["tracking_error_target"] == 0.09
+
+    csi500 = get_alpha_profile("csi500_volume_breakout_v1")
+    assert "flat_breakout_20d" in csi500["alpha_signals"]
 
     cfg = {"foo": "bar"}
     merged = apply_alpha_profile(cfg, "conservative")

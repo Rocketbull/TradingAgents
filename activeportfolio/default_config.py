@@ -23,6 +23,7 @@ DEFAULT_CONFIG = {
     "benchmark_weight_mode": "liquidity_proxy",  # equal, liquidity_proxy
     "benchmark_weight_lookback_days": 60,
     "rebalance_frequency": "weekly",      # daily, weekly, monthly
+    "monthly_rebalance_offset_days": 0,   # trading-day offset from month-end for monthly rebalances
     "max_weight": 0.05,
     "active_weight_cap": None,           # Optional absolute cap on |w - benchmark_w|
     "sector_active_weight_cap": None,    # Optional cap on |sector_w - sector_benchmark_w|
@@ -66,6 +67,7 @@ DEFAULT_CONFIG = {
     # When non-empty, AlphaModel.from_config() builds signals from this list.
     # Example item: {"type": "momentum", "name": "mom_3m", "window": 63, "enabled": True}
     "alpha_signal_registry": [],
+    "alpha_profile": None,
     "ic_lookback_rebalances": 26,
     "ic_weighting_mode": "positive",   # positive, signed
     "alpha_corr_penalty": 0.35,

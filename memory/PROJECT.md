@@ -23,5 +23,6 @@ Active Portfolio is a Python project for market data workflows, alpha research, 
 - `reviewer`: design, architecture, regression risk, and test coverage review.
 - `analyst`: pytest and backtest result analysis.
 - `backtest-position-report`: latest top 20 holdings, month-over-month deltas, additions/removals, and sector rollup for a saved backtest run.
+- `monthly-investor-commentary`: on-demand GenAI investor commentary using the latest completed one-month run context plus live market/news research.
 - `refresh-market-data`: refresh recurring `sp500` and `a300`/`csi300` universe files plus local `data/market/` histories.
 - `tradingagents-test-performance-diagnostics`: slow or regressed pytest diagnostics.

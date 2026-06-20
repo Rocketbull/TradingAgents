@@ -1,4 +1,6 @@
 typing-extensions
+matplotlib>=3.9,<3.11
+numpy>=2,<3
 pandas<3
 yfinance
 stockstats

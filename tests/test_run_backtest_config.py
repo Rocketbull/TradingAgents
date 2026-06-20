@@ -51,6 +51,7 @@ def test_build_config_uses_config_json_defaults(tmp_path: Path) -> None:
         dynamic_liquidity_filter=None,
         liquidity_top_n=None,
         liquidity_lookback_days=None,
+        monthly_rebalance_offset_days=None,
     )
 
     config = build_config(args)
@@ -60,6 +61,7 @@ def test_build_config_uses_config_json_defaults(tmp_path: Path) -> None:
     assert config["rebalance_frequency"] == "monthly"
     assert config["portfolio_universe_size"] == 500
     assert config["dynamic_liquidity_filter"] is True
+    assert config["monthly_rebalance_offset_days"] == 0
 
 
 def test_build_config_cli_overrides_json(tmp_path: Path) -> None:
@@ -95,6 +97,7 @@ def test_build_config_cli_overrides_json(tmp_path: Path) -> None:
         dynamic_liquidity_filter=False,
         liquidity_top_n=None,
         liquidity_lookback_days=None,
+        monthly_rebalance_offset_days=-2,
     )
 
     config = build_config(args)
@@ -105,3 +108,4 @@ def test_build_config_cli_overrides_json(tmp_path: Path) -> None:
     assert config["backtest_output_dir"] == "eval_results/backtest/test_override"
     assert config["alpha_signals"] == ["breakout_52w"]
     assert config["dynamic_liquidity_filter"] is False
+    assert config["monthly_rebalance_offset_days"] == -2

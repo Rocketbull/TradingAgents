@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "alphalens-reloaded>=0.4.6",
+    "matplotlib>=3.9,<3.11",
+    "numpy>=2,<3",
     "pandas>=2.3.0,<3.0",
     "pyarrow>=21.0.0",
     "pytz>=2025.2",

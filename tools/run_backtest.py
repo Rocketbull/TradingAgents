@@ -97,6 +97,11 @@ def parse_args() -> argparse.Namespace:
         help="Directory to store backtest artifacts.",
     )
     parser.add_argument(
+        "--alpha-profile",
+        default=None,
+        help="Optional named alpha profile to apply before backtest execution.",
+    )
+    parser.add_argument(
         "--alpha-signal",
         action="append",
         default=[],
@@ -122,6 +127,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Lookback days for median dollar volume liquidity ranking.",
+    )
+    parser.add_argument(
+        "--monthly-rebalance-offset-days",
+        type=int,
+        default=None,
+        help="Trading-day offset from month-end for monthly rebalances. Negative is before month-end.",
     )
     args = parser.parse_args()
     if args.start_date is None and args.end_date is None and args.config_json is None:
@@ -151,6 +162,8 @@ def build_config(args: argparse.Namespace) -> dict[str, Any]:
         "dynamic_liquidity_filter": args.dynamic_liquidity_filter,
         "liquidity_top_n": args.liquidity_top_n,
         "liquidity_lookback_days": args.liquidity_lookback_days,
+        "monthly_rebalance_offset_days": args.monthly_rebalance_offset_days,
+        "alpha_profile": getattr(args, "alpha_profile", None),
     }
     config.update({k: v for k, v in cli_updates.items() if v is not None})
 
