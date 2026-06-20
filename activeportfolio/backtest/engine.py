@@ -32,6 +32,9 @@ class BacktestEngine:
     def __post_init__(self) -> None:
         merged = DEFAULT_CONFIG.copy()
         merged.update(self.config or {})
+        alpha_profile = str(merged.get("alpha_profile") or "").strip()
+        if alpha_profile:
+            merged = apply_alpha_profile(merged, alpha_profile, overwrite=True)
         self.config = merged
 
         symbol_file = self._resolve_path_with_legacy(
@@ -488,9 +491,13 @@ class BacktestEngine:
                     "nav_before": nav,
                     "nav_after_costs": nav_after_costs,
                     "nav_after_period": nav_after_period,
+                    "portfolio_return": portfolio_return,
+                    "benchmark_return": benchmark_return,
+                    "active_return": portfolio_return - benchmark_return,
                     "turnover": turnover,
                     "cost": total_cost,
                     "orders_count": len(orders),
+                    "terminal_snapshot": int(is_terminal_rebalance),
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "benchmark_weights": benchmark_all_weights,
@@ -552,6 +559,9 @@ class BacktestEngine:
             for row in rebalance_log:
                 fh.write(json.dumps(row) + "\n")
         (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        commentary = self._build_monthly_commentary(summary=summary, rebalance_log=rebalance_log)
+        if commentary:
+            (out_dir / "monthly_commentary.md").write_text(commentary, encoding="utf-8")
 
         return {
             "summary": summary,
@@ -950,8 +960,17 @@ class BacktestEngine:
         if freq == "daily":
             return list(dates)
         if freq == "monthly":
-            grouped = pd.Series(dates, index=dates).groupby([dates.year, dates.month]).last()
-            return list(pd.DatetimeIndex(grouped.values))
+            grouped = pd.Series(dates, index=dates).groupby([dates.year, dates.month])
+            offset = int(self.config.get("monthly_rebalance_offset_days", 0))
+            picks: list[pd.Timestamp] = []
+            for _, month_dates in grouped:
+                month_idx = pd.DatetimeIndex(month_dates.values).sort_values()
+                if len(month_idx) == 0:
+                    continue
+                pos = len(month_idx) - 1 + offset
+                pos = max(0, min(pos, len(month_idx) - 1))
+                picks.append(pd.Timestamp(month_idx[pos]))
+            return picks
         # weekly default: last trading day of each ISO week
         iso = dates.isocalendar()
         grouped = pd.Series(dates, index=dates).groupby([iso.year, iso.week]).last()
@@ -1006,6 +1025,125 @@ class BacktestEngine:
         syms = list(symbols)
         w = 1.0 / len(syms)
         return {s: w for s in syms}
+
+    def _build_monthly_commentary(
+        self,
+        summary: Dict[str, Any],
+        rebalance_log: list[dict[str, Any]],
+    ) -> str:
+        if str(self.config.get("rebalance_frequency", "weekly")).lower() != "monthly":
+            return ""
+        if len(rebalance_log) < 2:
+            return ""
+
+        benchmark_symbol = str(summary.get("benchmark_symbol", self.config.get("benchmark_symbol", "SPY"))).upper()
+        initial_capital = float(summary.get("initial_capital", self.config.get("initial_capital", 1_000_000.0)))
+        sections = ["# Monthly Rebalance Commentary"]
+
+        for prev_row, current_row in zip(rebalance_log[:-1], rebalance_log[1:]):
+            current_date = str(current_row.get("trade_date", ""))
+            prev_date = str(prev_row.get("trade_date", ""))
+            benchmark_return = float(prev_row.get("benchmark_return", 0.0))
+            portfolio_return = float(prev_row.get("portfolio_return", 0.0))
+            active_return = float(prev_row.get("active_return", portfolio_return - benchmark_return))
+            nav_before = float(current_row.get("nav_before", 0.0))
+            nav_after_costs = float(current_row.get("nav_after_costs", nav_before))
+            since_inception = (nav_before / initial_capital - 1.0) if initial_capital > 0 else 0.0
+
+            adds, trims = self._weight_change_lists(
+                previous_weights=dict(prev_row.get("target_weights", {})),
+                current_weights=dict(current_row.get("target_weights", {})),
+                limit=5,
+            )
+            top_holdings = self._top_weights(dict(current_row.get("target_weights", {})), limit=5)
+            signal_emphasis = self._top_weights(dict(current_row.get("alpha_weights", {})), limit=3)
+            regime = dict(current_row.get("regime", {}))
+            regime_label = str(regime.get("label", "static"))
+            regime_reason = str(regime.get("switch_reason", "n/a"))
+
+            sections.extend(
+                [
+                    "",
+                    f"## {current_date}",
+                    "",
+                    "### MoM Benchmark Performance",
+                    f"From {prev_date} to {current_date}, `{benchmark_symbol}` returned {self._fmt_pct(benchmark_return)}.",
+                    "",
+                    "### Portfolio Performance",
+                    (
+                        f"Over the same window, the portfolio returned {self._fmt_pct(portfolio_return)} "
+                        f"for active return of {self._fmt_pct(active_return)} versus `{benchmark_symbol}`."
+                    ),
+                    (
+                        f"Portfolio value entered the rebalance at {self._fmt_ccy(nav_before)} and exited at "
+                        f"{self._fmt_ccy(nav_after_costs)} after modeled trading costs of "
+                        f"{self._fmt_ccy(float(current_row.get('cost', 0.0)))}. "
+                        f"Since inception, NAV was {self._fmt_pct(since_inception)} above starting capital."
+                    ),
+                    "",
+                    "### Rebalance Decisions",
+                    (
+                        f"The rebalance executed {int(current_row.get('orders_count', 0))} orders with "
+                        f"turnover of {self._fmt_pct(float(current_row.get('turnover', 0.0)))}."
+                    ),
+                    f"Largest adds: {adds}.",
+                    f"Largest trims: {trims}.",
+                    f"Top holdings after rebalance: {top_holdings}.",
+                    f"Signal emphasis: {signal_emphasis}.",
+                    (
+                        f"Regime posture: `{regime_label}` "
+                        f"(switch_reason=`{regime_reason}`, hold_count={int(regime.get('hold_count', 0))})."
+                    ),
+                ]
+            )
+
+        return "\n".join(sections).strip() + "\n"
+
+    @staticmethod
+    def _weight_change_lists(
+        previous_weights: Dict[str, Any],
+        current_weights: Dict[str, Any],
+        limit: int,
+    ) -> tuple[str, str]:
+        deltas: list[tuple[str, float]] = []
+        for symbol in sorted(set(previous_weights) | set(current_weights)):
+            delta = float(current_weights.get(symbol, 0.0)) - float(previous_weights.get(symbol, 0.0))
+            if abs(delta) < 1e-4:
+                continue
+            deltas.append((symbol, delta))
+
+        adds = [item for item in deltas if item[1] > 0]
+        trims = [item for item in deltas if item[1] < 0]
+        adds.sort(key=lambda item: item[1], reverse=True)
+        trims.sort(key=lambda item: item[1])
+        return (
+            BacktestEngine._fmt_weight_pairs(adds[:limit]),
+            BacktestEngine._fmt_weight_pairs(trims[:limit]),
+        )
+
+    @staticmethod
+    def _top_weights(weights: Dict[str, Any], limit: int) -> str:
+        ranked = [
+            (str(symbol), float(weight))
+            for symbol, weight in weights.items()
+            if abs(float(weight)) >= 1e-4
+        ]
+        ranked.sort(key=lambda item: item[1], reverse=True)
+        return BacktestEngine._fmt_weight_pairs(ranked[:limit])
+
+    @staticmethod
+    def _fmt_weight_pairs(pairs: list[tuple[str, float]]) -> str:
+        if not pairs:
+            return "no material changes"
+        return ", ".join(f"`{symbol}` {BacktestEngine._fmt_pct(weight)}" for symbol, weight in pairs)
+
+    @staticmethod
+    def _fmt_pct(value: float) -> str:
+        return f"{value:+.2%}"
+
+    @staticmethod
+    def _fmt_ccy(value: float) -> str:
+        return f"${value:,.0f}"
 
     def _output_dir(self) -> Path:
         configured = self.config.get("backtest_output_dir")

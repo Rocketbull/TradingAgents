@@ -300,40 +300,62 @@ class PortfolioOptimizer:
         try:
             import cvxpy as cp
 
-            x = cp.Variable(len(w0))
-            constraints = [
-                x >= 0.0,
-                x <= float(self.max_weight),
-                cp.sum(x) == 1.0,
+            solver_attempts = [
+                (cp.OSQP, {"eps_abs": 1e-8, "eps_rel": 1e-8, "max_iter": 100000, "warm_start": True}),
+                (cp.CLARABEL, {"warm_start": True}),
+                (cp.SCS, {"eps": 1e-6, "max_iters": 20000, "warm_start": True}),
             ]
-            for idxs in groups.values():
-                b_sec = float(b.iloc[idxs].sum())
-                lower = max(0.0, b_sec - cap)
-                upper = min(1.0, b_sec + cap)
-                constraints.append(cp.sum(x[idxs]) >= lower)
-                constraints.append(cp.sum(x[idxs]) <= upper)
+            last_error: Exception | None = None
+            for solver, kwargs in solver_attempts:
+                try:
+                    x = cp.Variable(len(w0))
+                    constraints = [
+                        x >= 0.0,
+                        x <= float(self.max_weight),
+                        cp.sum(x) == 1.0,
+                    ]
+                    for idxs in groups.values():
+                        b_sec = float(b.iloc[idxs].sum())
+                        lower = max(0.0, b_sec - cap)
+                        upper = min(1.0, b_sec + cap)
+                        constraints.append(cp.sum(x[idxs]) >= lower)
+                        constraints.append(cp.sum(x[idxs]) <= upper)
 
-            obj = cp.Minimize(cp.sum_squares(x - w0.values))
-            prob = cp.Problem(obj, constraints)
-            prob.solve(
-                solver=cp.OSQP,
-                eps_abs=1e-8,
-                eps_rel=1e-8,
-                max_iter=100000,
-                warm_start=True,
-            )
-            if x.value is None:
-                raise ValueError("No solution from cvxpy sector active projection")
-            w = pd.Series(np.asarray(x.value).reshape(-1), index=w0.index)
-            w = w.clip(lower=0.0, upper=self.max_weight)
-            total = float(w.sum())
-            if total <= 0:
-                return w0
-            if abs(total - 1.0) > 1e-6:
-                w = w / total
-            return w
+                    obj = cp.Minimize(cp.sum_squares(x - w0.values))
+                    prob = cp.Problem(obj, constraints)
+                    prob.solve(solver=solver, **kwargs)
+                    if x.value is None:
+                        raise ValueError("No solution from cvxpy sector active projection")
+                    w = pd.Series(np.asarray(x.value).reshape(-1), index=w0.index)
+                    w = w.clip(lower=0.0, upper=self.max_weight)
+                    total = float(w.sum())
+                    if total <= 0:
+                        raise ValueError("Projected weights sum to non-positive total")
+                    if abs(total - 1.0) > 1e-6:
+                        w = w / total
+                    if self._max_sector_active_violation(w, b, groups, cap) > 1e-5:
+                        raise ValueError(f"Sector active projection violated cap under solver {solver}")
+                    return w
+                except Exception as exc:
+                    last_error = exc
+            if last_error is not None:
+                raise last_error
         except Exception:
             return w0
+
+    @staticmethod
+    def _max_sector_active_violation(
+        weights: pd.Series,
+        benchmark: pd.Series,
+        groups: Dict[str, list[int]],
+        cap: float,
+    ) -> float:
+        max_violation = 0.0
+        for idxs in groups.values():
+            weight_sum = float(weights.iloc[idxs].sum())
+            benchmark_sum = float(benchmark.iloc[idxs].sum())
+            max_violation = max(max_violation, abs(weight_sum - benchmark_sum) - float(cap))
+        return max_violation
 
     def _add_sector_active_constraints(
         self,

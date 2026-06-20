@@ -765,6 +765,15 @@ These are intentionally deferred while the project prioritizes framework complet
   - Purpose: make alpha research easier to navigate without letting exploratory work blur production-facing module boundaries.
   - Status: open.
 
+- TODO 8: Reduce duplication between alpha profiles and full baseline configs
+  - Rule: clarify one source of truth for alpha-layer settings so `activeportfolio/alpha/profiles.py` and `research/configs/backtest_*.json` do not drift with near-duplicate signal registries and weighting knobs.
+  - Required upgrades:
+    - decide whether full baselines should reference profile names or continue inlining alpha settings,
+    - keep alpha-only profiles free of portfolio/backtest controls where possible,
+    - document when duplication is intentional versus temporary.
+  - Purpose: lower maintenance burden and reduce the risk of promoting one baseline while forgetting to update the matching reusable profile.
+  - Status: deferred.
+
 - Rationale for deferral:
   - Current stage is focused on architecture, data plumbing, and end-to-end workflow reliability.
   - High-quality stable IC is not yet expected; hard gating now may hide integration issues.

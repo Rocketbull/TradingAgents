@@ -20,6 +20,7 @@ from activeportfolio.dataflows.ashare import (
     normalize_symbol as normalize_ashare_symbol,
 )
 from tools.csi300_symbols import fetch_csi300_symbols
+from tools.csi500_symbols import fetch_csi500_symbols
 from tools.sp500_symbols import fetch_sp500_symbols
 
 
@@ -46,6 +47,11 @@ def parse_args() -> argparse.Namespace:
         "--csi300",
         action="store_true",
         help="Download all current CSI300 constituents from the official CSIndex workbook.",
+    )
+    parser.add_argument(
+        "--csi500",
+        action="store_true",
+        help="Download all current CSI500 constituents from the official CSIndex workbook.",
     )
     parser.add_argument(
         "--crypto",
@@ -130,6 +136,8 @@ def main() -> None:
         merged.extend(fetch_sp500_symbols())
     if args.csi300:
         merged.extend(fetch_csi300_symbols())
+    if args.csi500:
+        merged.extend(fetch_csi500_symbols())
     if args.crypto:
         merged.extend(["BTC-USD", "ETH-USD"])
     if args.commodities:

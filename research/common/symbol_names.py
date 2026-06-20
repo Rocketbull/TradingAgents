@@ -19,19 +19,33 @@ def _resolve_existing_path(*candidates: str) -> Path | None:
 def load_symbol_name_table() -> pd.DataFrame:
     rows: list[dict[str, str]] = []
 
-    csi300_path = _resolve_existing_path(
-        "data/universe/csi300/current/csi300_weights.csv",
-        "../data/universe/csi300/current/csi300_weights.csv",
-    )
-    if csi300_path is not None:
-        csi300 = pd.read_csv(csi300_path)
+    for label, candidates in (
+        (
+            "csi300_weights",
+            (
+                "data/universe/csi300/current/csi300_weights.csv",
+                "../data/universe/csi300/current/csi300_weights.csv",
+            ),
+        ),
+        (
+            "csi500_weights",
+            (
+                "data/universe/csi500/current/csi500_weights.csv",
+                "../data/universe/csi500/current/csi500_weights.csv",
+            ),
+        ),
+    ):
+        path = _resolve_existing_path(*candidates)
+        if path is None:
+            continue
+        frame = pd.read_csv(path)
         required = {"symbol", "constituent_name", "constituent_name_eng"}
-        if required.issubset(csi300.columns):
-            subset = csi300.loc[:, ["symbol", "constituent_name", "constituent_name_eng"]].copy()
+        if required.issubset(frame.columns):
+            subset = frame.loc[:, ["symbol", "constituent_name", "constituent_name_eng"]].copy()
             subset["symbol"] = subset["symbol"].astype(str).str.upper()
             subset["stock_name"] = subset["constituent_name"].astype(str).str.strip()
             subset["stock_name_eng"] = subset["constituent_name_eng"].astype(str).str.strip()
-            subset["source"] = "csi300_weights"
+            subset["source"] = label
             rows.extend(
                 subset.loc[:, ["symbol", "stock_name", "stock_name_eng", "source"]]
                 .to_dict(orient="records")

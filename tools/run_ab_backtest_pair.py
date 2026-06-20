@@ -121,6 +121,15 @@ def required_warmup_days(config: dict[str, Any]) -> int:
     return max(risk_lookback, long_lb, vol_lb) * 2
 
 
+def resolve_config(base_config: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    config = dict(base_config)
+    config.update(overrides)
+    alpha_profile = str(config.get("alpha_profile") or "").strip()
+    if alpha_profile:
+        config = apply_alpha_profile(config, alpha_profile, overwrite=True)
+    return config
+
+
 def main() -> None:
     args = parse_args()
     auto_adjust = bool(args.auto_adjust_start_for_warmup) and not bool(
@@ -133,10 +142,8 @@ def main() -> None:
     if args.base_profile:
         base = apply_alpha_profile(base, args.base_profile)
 
-    cfg_a = dict(base)
-    cfg_a.update(load_json(args.config_a_json))
-    cfg_b = dict(base)
-    cfg_b.update(load_json(args.config_b_json))
+    cfg_a = resolve_config(base, load_json(args.config_a_json))
+    cfg_b = resolve_config(base, load_json(args.config_b_json))
 
     # Warmup requirement from both sides (take worst case).
     warmup_days = max(required_warmup_days(cfg_a), required_warmup_days(cfg_b))
