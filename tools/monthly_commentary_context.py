@@ -54,7 +54,10 @@ def default_baseline_family(config_path: Path) -> str:
 
 
 def _is_baseline_family_dir(path: Path, family_name: str) -> bool:
-    pattern = rf"^{re.escape(family_name)}(?:_(?:\d{{8}}|\d{{4}}-\d{{2}}-\d{{2}}))?(?:_terminal)?$"
+    pattern = (
+        rf"^{re.escape(family_name)}"
+        rf"(?:_(?:\d{{8}}|\d{{4}}-\d{{2}}-\d{{2}})(?:_[A-Za-z0-9-]+)*)?$"
+    )
     return bool(re.fullmatch(pattern, path.name))
 
 
