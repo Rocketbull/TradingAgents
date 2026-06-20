@@ -24,6 +24,7 @@ DEFAULT_CONFIG = {
     "benchmark_weight_mode": "liquidity_proxy",  # equal, liquidity_proxy
     "benchmark_weight_lookback_days": 60,
     "benchmark_hedge_ratio": 0.0,  # Optional short benchmark overlay applied to period returns.
+    "benchmark_overlay": 0.0,      # Optional signed benchmark overlay: + long benchmark, - short benchmark.
     "rebalance_frequency": "weekly",      # daily, weekly, monthly
     "monthly_rebalance_offset_days": 0,   # trading-day offset from month-end for monthly rebalances
     "max_weight": 0.05,
@@ -85,10 +86,15 @@ DEFAULT_CONFIG = {
     "ic_gate_min_samples": 8,         # Minimum history points for significance gates.
     # Regime switch settings (optional dynamic alpha/profile routing)
     "regime_switch_enabled": False,
-    "regime_model_type": "rule_v1",  # rule_v1
+    "regime_model_type": "rule_v1",  # rule_v1, rule_v2, macro_v1
     "regime_benchmark_symbol": "SPY",
     "regime_risk_symbol": "BTC-USD",
     "regime_defensive_symbol": "GLD",
+    "regime_v2_duration_symbol": "TLT",
+    "regime_v2_defensive_symbol": "GLD",
+    "regime_v2_growth_symbol": "XLK",
+    "regime_v2_inflation_symbol": "XLE",
+    "regime_v2_speculative_symbols": ["BTC-USD", "ETH-USD"],
     "regime_short_window": 21,
     "regime_long_window": 63,
     "regime_relative_window": 63,
@@ -97,6 +103,28 @@ DEFAULT_CONFIG = {
     "regime_temperature": 0.20,
     "regime_min_hold_rebalances": 2,          # minimum rebalances before another regime switch
     "regime_switch_confidence_buffer": 0.10,  # min top-vs-second probability margin to switch
+    "regime_benchmark_overlays": {},  # Optional mapping: {"risk_on": 0.25, "neutral": 0.0, "risk_off": -0.25}
+    "regime_macro_data_root": "data/macro/fred",
+    "regime_macro_auto_download": True,
+    "regime_macro_lookback_days": 800,
+    "regime_macro_unemployment_series_id": "UNRATE",
+    "regime_macro_inflation_series_id": "CPIAUCSL",
+    "regime_macro_growth_series_id": "INDPRO",
+    "regime_macro_curve_series_id": "T10Y2Y",
+    "regime_macro_policy_series_id": "FEDFUNDS",
+    "regime_macro_stress_series_id": "VIXCLS",
+    "regime_macro_unemployment_lag_days": 35,
+    "regime_macro_inflation_lag_days": 35,
+    "regime_macro_growth_lag_days": 35,
+    "regime_macro_curve_lag_days": 1,
+    "regime_macro_policy_lag_days": 35,
+    "regime_macro_stress_lag_days": 1,
+    "regime_macro_growth_weight": 0.25,
+    "regime_macro_labor_weight": 0.20,
+    "regime_macro_inflation_weight": 0.15,
+    "regime_macro_curve_weight": 0.15,
+    "regime_macro_policy_weight": 0.10,
+    "regime_macro_stress_weight": 0.15,
     # Optional mapping: {"risk_on": "<profile>", "neutral": "<profile>", "risk_off": "<profile>"}
     "regime_alpha_profiles": {},
     # Data vendor configuration

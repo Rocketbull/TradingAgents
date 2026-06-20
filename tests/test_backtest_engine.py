@@ -116,6 +116,7 @@ def test_backtest_engine_persists_terminal_monthly_rebalance(tmp_path: Path):
     assert "### MoM Benchmark Performance" in commentary
     assert "### Portfolio Performance" in commentary
     assert "### Rebalance Decisions" in commentary
+    assert "### Macro Regime" in commentary
     assert "`SPY` returned" in commentary
 
 
@@ -225,6 +226,7 @@ def test_backtest_engine_equal_weight_mode_and_benchmark_hedge(tmp_path: Path):
     first = result["rebalance_log"][0]
     assert first["construction_mode"] == "equal_weight"
     assert first["benchmark_hedge_ratio"] == 0.5
+    assert first["benchmark_overlay"] == -0.5
     assert first["target_weights"]["AAA"] == 0.5
     assert first["target_weights"]["BBB"] == 0.5
 
@@ -262,6 +264,94 @@ def test_backtest_engine_benchmark_hedge_reduces_period_return(tmp_path: Path):
     assert abs(float(first_hedged["portfolio_return"]) - expected_hedged_return) < 1e-12
 
 
+def test_backtest_engine_signed_benchmark_overlay_increases_period_return(tmp_path: Path):
+    base_config = DEFAULT_CONFIG.copy()
+    base_config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "portfolio_construction_mode": "equal_weight",
+            "dynamic_liquidity_filter": False,
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+        }
+    )
+    unhedged = dict(base_config)
+    unhedged["backtest_output_dir"] = str(tmp_path / "run_equal_weight_unhedged_long_overlay")
+    overlaid = dict(base_config)
+    overlaid["backtest_output_dir"] = str(tmp_path / "run_equal_weight_long_overlay")
+    overlaid["benchmark_overlay"] = 0.25
+
+    unhedged_result = BacktestEngine(unhedged).run(close_prices=_close_frame())
+    overlaid_result = BacktestEngine(overlaid).run(close_prices=_close_frame())
+
+    first_unhedged = unhedged_result["equity_curve"].iloc[0]
+    first_overlaid = overlaid_result["equity_curve"].iloc[0]
+    expected_overlaid_return = float(first_unhedged["portfolio_return"]) + 0.25 * float(
+        first_unhedged["benchmark_return"]
+    )
+    assert abs(float(first_overlaid["portfolio_return"]) - expected_overlaid_return) < 1e-12
+
+
+def test_backtest_engine_regime_benchmark_overlay_applies_by_label(tmp_path: Path, monkeypatch):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_regime_overlay"),
+            "portfolio_construction_mode": "equal_weight",
+            "dynamic_liquidity_filter": False,
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+            "regime_switch_enabled": True,
+            "regime_model_type": "rule_v1",
+            "regime_benchmark_overlays": {
+                "risk_on": 0.25,
+                "neutral": 0.0,
+                "risk_off": -0.25
+            },
+        }
+    )
+
+    def fake_detect(self, close_history):
+        return {
+            "label": "risk_on",
+            "score": 0.3,
+            "probabilities": {"risk_on": 0.8, "neutral": 0.1, "risk_off": 0.1},
+            "diagnostics": {},
+        }
+
+    monkeypatch.setattr(BacktestEngine, "_detect_regime", fake_detect)
+
+    unhedged = dict(config)
+    unhedged["regime_switch_enabled"] = False
+    unhedged["regime_benchmark_overlays"] = {}
+    unhedged["backtest_output_dir"] = str(tmp_path / "run_regime_overlay_unhedged")
+
+    regime_result = BacktestEngine(config).run(close_prices=_close_frame())
+    unhedged_result = BacktestEngine(unhedged).run(close_prices=_close_frame())
+
+    first = regime_result["rebalance_log"][0]
+    first_unhedged = unhedged_result["rebalance_log"][0]
+    expected_overlay = 0.25
+    expected_return = float(first_unhedged["portfolio_return"]) + expected_overlay * float(
+        first_unhedged["benchmark_return"]
+    )
+    assert first["regime"]["label"] == "risk_on"
+    assert abs(float(first["benchmark_overlay"]) - expected_overlay) < 1e-12
+    assert abs(float(first["hedge_return"]) - expected_overlay * float(first["benchmark_return"])) < 1e-12
+    assert abs(float(first["portfolio_return"]) - expected_return) < 1e-12
+
+
 def test_backtest_engine_regime_switch_logs_state(tmp_path: Path):
     config = DEFAULT_CONFIG.copy()
     config.update(
@@ -294,6 +384,97 @@ def test_backtest_engine_regime_switch_logs_state(tmp_path: Path):
     assert "switch_reason" in first["regime"]
     assert "hold_count" in first["regime"]
     assert "regime_profile" in first
+
+
+def test_backtest_engine_rule_v2_regime_logs_state(tmp_path: Path):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_rule_v2_regime"),
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+            "regime_switch_enabled": True,
+            "regime_model_type": "rule_v2",
+            "regime_alpha_profiles": {
+                "risk_on": "momentum_heavy",
+                "neutral": "conservative",
+                "risk_off": "mean_reversion_heavy",
+            },
+        }
+    )
+    frame = _close_frame().assign(
+        **{
+            "TLT": _close_frame()["SPY"] * 0.8,
+            "GLD": _close_frame()["SPY"] * 0.9,
+            "XLK": _close_frame()["SPY"] * 1.1,
+            "XLE": _close_frame()["SPY"] * 0.95,
+            "BTC-USD": _close_frame()["SPY"] * 1.2,
+            "ETH-USD": _close_frame()["SPY"] * 1.25,
+        }
+    )
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=frame)
+
+    assert result["rebalance_log"], "Expected non-empty rebalance log"
+    first = result["rebalance_log"][0]
+    assert first["regime"]["label"] in {"risk_on", "neutral", "risk_off"}
+    assert "sector_leadership_component" in first["regime"]["diagnostics"]
+    assert "speculative_risk_component" in first["regime"]["diagnostics"]
+
+
+def test_backtest_engine_macro_regime_logs_state(tmp_path: Path, monkeypatch):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_macro_regime"),
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+            "regime_switch_enabled": True,
+            "regime_model_type": "macro_v1",
+            "regime_alpha_profiles": {
+                "risk_on": "momentum_heavy",
+                "neutral": "conservative",
+                "risk_off": "mean_reversion_heavy",
+            },
+        }
+    )
+
+    def fake_load_series_window(self, series_id: str, start_date: str, end_date: str) -> pd.Series:
+        idx = pd.to_datetime(["2024-01-31", "2024-06-30", "2024-12-31", "2025-01-31"])
+        data = {
+            "UNRATE": [4.7, 4.5, 4.1, 4.0],
+            "CPIAUCSL": [100.0, 100.8, 102.0, 102.2],
+            "INDPRO": [100.0, 101.0, 104.0, 104.5],
+            "T10Y2Y": [0.2, 0.3, 0.5, 0.4],
+            "FEDFUNDS": [5.5, 5.25, 4.75, 4.5],
+            "VIXCLS": [18.0, 17.0, 16.0, 15.0],
+        }
+        return pd.Series(data[series_id], index=idx, dtype=float)
+
+    monkeypatch.setattr(
+        "activeportfolio.dataflows.fred_macro.FREDMacroStore.load_series_window",
+        fake_load_series_window,
+    )
+
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=_close_frame())
+
+    assert result["rebalance_log"], "Expected non-empty rebalance log"
+    first = result["rebalance_log"][0]
+    assert first["regime"]["label"] in {"risk_on", "neutral", "risk_off"}
+    assert "growth_6m_return" in first["regime"]["diagnostics"]
 
 
 def test_regime_stability_blocks_switch_until_min_hold():
