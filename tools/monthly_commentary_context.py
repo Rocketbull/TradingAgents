@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tools.backtest_position_report import latest_trade_date, resolve_backtest_root, resolve_run_dir
+from activeportfolio.regime import regime_stage_title, summarize_regime
 
 
 def load_summary(run_dir: Path) -> dict[str, Any]:
@@ -226,7 +227,11 @@ def build_monthly_commentary_context(run_dir: Path) -> dict[str, Any]:
             "top_holdings_after_rebalance": _sorted_weight_pairs(current_weights, limit=10),
             "signal_emphasis": _sorted_weight_pairs(dict(current_row.get("alpha_weights", {})), limit=5),
         },
-        "regime": dict(current_row.get("regime", {})),
+        "regime": {
+            **dict(current_row.get("regime", {})),
+            "title": regime_stage_title(str(dict(current_row.get("regime", {})).get("label", "unknown"))),
+            "summary": summarize_regime(dict(current_row.get("regime", {}))),
+        },
         "portfolio_metrics": dict(current_row.get("portfolio_metrics", {})),
     }
 

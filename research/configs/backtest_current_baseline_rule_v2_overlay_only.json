@@ -1,0 +1,115 @@
+{
+  "benchmark_symbol": "SPY",
+  "universe_source": "sp500_file",
+  "portfolio_universe_size": 503,
+  "universe_snapshot_dir": "data/universe/sp500/snapshots",
+  "snapshot_schedule_enabled": false,
+  "dynamic_liquidity_filter": true,
+  "liquidity_top_n": 100,
+  "liquidity_lookback_days": 60,
+  "benchmark_weight_mode": "liquidity_proxy",
+  "benchmark_weight_lookback_days": 60,
+  "rebalance_frequency": "monthly",
+  "max_weight": 0.08,
+  "active_weight_cap": 0.04,
+  "tracking_error_target": 0.1,
+  "sector_cap": null,
+  "turnover_limit": 0.5,
+  "risk_aversion": 3.0,
+  "transaction_cost_bps": 5.0,
+  "backtest_start_date": "2021-05-23",
+  "backtest_end_date": "2026-06-10",
+  "backtest_output_dir": "eval_results/backtest/current_baseline_rule_v2_overlay_only",
+  "data_root": "data/market",
+  "symbol_file": "data/universe/sp500/current/sp500_symbols.txt",
+  "sector_classification_cache": "data/market/metadata/yfinance_classification.csv",
+  "fetch_missing_sector_data": false,
+  "auto_refresh_sector_cache_on_low_coverage": false,
+  "alpha_signals": [
+    "mom_1m",
+    "mom_3m",
+    "mom_6m",
+    "mom_12m",
+    "mom_12m_skip_1m",
+    "trend_12m_1m",
+    "vol_confirmed_mom_1m"
+  ],
+  "alpha_signal_registry": [
+    {
+      "type": "momentum",
+      "name": "mom_1m",
+      "window": 21
+    },
+    {
+      "type": "momentum",
+      "name": "mom_3m",
+      "window": 63
+    },
+    {
+      "type": "momentum",
+      "name": "mom_6m",
+      "window": 126
+    },
+    {
+      "type": "momentum",
+      "name": "mom_12m",
+      "window": 252
+    },
+    {
+      "type": "momentum_skip_recent",
+      "name": "mom_12m_skip_1m",
+      "long_window": 252,
+      "skip_window": 21
+    },
+    {
+      "type": "trend",
+      "name": "trend_12m_1m",
+      "long_window": 252,
+      "short_window": 21
+    },
+    {
+      "type": "volume_confirmed_momentum",
+      "name": "vol_confirmed_mom_1m",
+      "momentum_window": 21,
+      "vol_short_window": 5,
+      "vol_long_window": 20
+    }
+  ],
+  "ic_lookback_rebalances": 26,
+  "ic_weighting_mode": "positive",
+  "alpha_corr_penalty": 0.40,
+  "alpha_min_ic_weight": 0.0,
+  "alpha_weight_smoothing": 0.35,
+  "alpha_max_signal_weight": 0.25,
+  "ic_ewm_decay": 0.85,
+  "ic_gate_min_mean": 0.005,
+  "ic_gate_use_abs_mean": false,
+  "ic_gate_min_tstat": null,
+  "ic_gate_min_hit_rate": 0.52,
+  "ic_gate_min_samples": 12,
+  "regime_switch_enabled": true,
+  "regime_model_type": "rule_v2",
+  "regime_benchmark_symbol": "SPY",
+  "regime_v2_duration_symbol": "TLT",
+  "regime_v2_defensive_symbol": "GLD",
+  "regime_v2_growth_symbol": "XLK",
+  "regime_v2_inflation_symbol": "XLE",
+  "regime_v2_speculative_symbols": [
+    "BTC-USD",
+    "ETH-USD"
+  ],
+  "regime_short_window": 21,
+  "regime_long_window": 63,
+  "regime_relative_window": 63,
+  "regime_risk_on_threshold": 0.15,
+  "regime_risk_off_threshold": -0.15,
+  "regime_temperature": 0.2,
+  "regime_min_hold_rebalances": 2,
+  "regime_switch_confidence_buffer": 0.1,
+  "regime_alpha_profiles": {},
+  "regime_benchmark_overlays": {
+    "risk_on": 0.25,
+    "neutral": 0.0,
+    "risk_off": -0.25
+  }
+}
