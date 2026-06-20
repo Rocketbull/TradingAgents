@@ -10,7 +10,7 @@ This project now includes an Alphalens adapter to validate individual factors us
 Example (`mom_3m` on `diversified_sp500_v2_tilt`):
 
 ```bash
-.conda/tradingagents/bin/python research/alpha_alphalens_adapter.py \
+conda run -n activepm python research/alpha_alphalens_adapter.py \
   --config-json research/configs/alpha_alphalens_mom3m_sample.json \
   --run-tag alphalens_mom3m_sample
 ```
@@ -29,7 +29,7 @@ Outputs are written to:
 Use the tearsheet script on the generated `factor_data.parquet`:
 
 ```bash
-.conda/tradingagents/bin/python research/alpha_alphalens_tearsheet.py \
+conda run -n activepm python research/alpha_alphalens_tearsheet.py \
   --factor-data research/output/alphalens_mom3m_sample/factor_data.parquet \
   --out-dir research/output/alphalens_mom3m_sample/tearsheet_png
 ```
@@ -37,7 +37,7 @@ Use the tearsheet script on the generated `factor_data.parquet`:
 Optional interactive display:
 
 ```bash
-.conda/tradingagents/bin/python research/alpha_alphalens_tearsheet.py \
+conda run -n activepm python research/alpha_alphalens_tearsheet.py \
   --factor-data research/output/alphalens_mom3m_sample/factor_data.parquet \
   --show
 ```

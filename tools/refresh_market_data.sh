@@ -3,26 +3,30 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
-PYTHON_BIN="${PYTHON_BIN:-.conda/tradingagents/bin/python}"
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+  PYTHON_CMD=("$PYTHON_BIN")
+else
+  PYTHON_CMD=(conda run -n activepm python)
+fi
 START_DATE="${1:-2020-01-01}"
 END_DATE="${2:-$(date +%F)}"
 OUT_DIR="${3:-data/market}"
 
-if [[ ! -x "$PYTHON_BIN" ]]; then
-  echo "Python binary not found at $PYTHON_BIN"
-  echo "Set PYTHON_BIN to your Active Portfolio environment executable and retry."
+if ! command -v "${PYTHON_CMD[0]}" > /dev/null; then
+  echo "Python launcher not found: ${PYTHON_CMD[0]}"
+  echo "Install Conda with the activepm environment, or set PYTHON_BIN explicitly."
   exit 1
 fi
 
 pushd "$REPO_ROOT" > /dev/null
 
 echo "[step] refresh sp500 symbol source"
-"$PYTHON_BIN" tools/sp500_symbols.py \
+"${PYTHON_CMD[@]}" tools/sp500_symbols.py \
   --out data/universe/sp500/current/sp500_symbols.txt \
   --snapshot-dir data/universe/sp500/snapshots
 
 echo "[step] refresh market history (${START_DATE}..${END_DATE})"
-"$PYTHON_BIN" tools/download_market_data.py \
+"${PYTHON_CMD[@]}" tools/download_market_data.py \
   --sp500 \
   --crypto \
   --commodities \

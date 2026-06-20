@@ -11,7 +11,7 @@ This guide covers:
 Use project Python:
 
 ```bash
-.conda/tradingagents/bin/python --version
+conda run -n activepm python --version
 ```
 
 All examples below assume execution from repo root.
@@ -21,7 +21,7 @@ All examples below assume execution from repo root.
 Example:
 
 ```bash
-.conda/tradingagents/bin/python research/hypothesis_analysis.py \
+conda run -n activepm python research/hypothesis_analysis.py \
   --start-date 2024-01-01 \
   --end-date 2025-12-31 \
   --spy-symbol SPY \
@@ -45,7 +45,7 @@ Outputs:
 Example:
 
 ```bash
-.conda/tradingagents/bin/python research/threshold_sweep.py \
+conda run -n activepm python research/threshold_sweep.py \
   --start-date 2024-01-01 \
   --end-date 2025-12-31 \
   --spy-symbol SPY \
@@ -69,7 +69,7 @@ Outputs:
 This runs both scripts with one command and fixed demo defaults:
 
 ```bash
-.conda/tradingagents/bin/python tools/demo_hypothesis_threshold.py \
+conda run -n activepm python tools/demo_hypothesis_threshold.py \
   --start-date 2024-01-01 \
   --end-date 2025-12-31 \
   --run-tag-prefix demo_hypothesis_threshold \
@@ -93,7 +93,7 @@ Behavior note:
 ## 4) Build Cross-Run Registry Directly
 
 ```bash
-.conda/tradingagents/bin/python research/build_experiment_registry.py \
+conda run -n activepm python research/build_experiment_registry.py \
   --runs-root research/output \
   --registry-csv research/output/experiment_registry.csv \
   --comparison-csv research/output/experiment_comparison.csv \

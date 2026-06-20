@@ -12,11 +12,11 @@ Active Portfolio is a Python project for market data workflows, alpha research, 
 
 ## Environment
 - Python requirement: `>=3.10`.
-- Use project environment binaries directly from `.conda/tradingagents/bin/`.
-- If `.conda/tradingagents/bin/` is missing in the current checkout, use the validated fallback interpreter at `/home/rockebull/miniconda3/envs/tradingagents/bin/python`.
-- When the fallback path is needed once in a task, reuse it for the rest of the repo work instead of re-probing interpreters.
-- Dependency install command: `.conda/tradingagents/bin/pip install -r requirements.txt`.
-- Optional editable install: `.conda/tradingagents/bin/pip install -e .`.
+- Always use the `activepm` Conda environment for project commands.
+- Reproducible env spec: `environment.yml` (`conda env create -f environment.yml`).
+- Python command prefix: `conda run -n activepm python`.
+- Dependency install command: `conda run -n activepm python -m pip install -r requirements.txt`.
+- Optional editable install: `conda run -n activepm python -m pip install -e .`.
 
 ## Agent Skills
 - `coder`: implementation, tests, dataflow, research workflow changes, and validation.

@@ -30,14 +30,14 @@ It captures the stronger monthly, snapshot-aware, liquidity-filtered SP500 setup
 Run the current baseline exactly as saved:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_backtest.py \
+conda run -n activepm python tools/run_backtest.py \
   --config-json research/configs/baselines/backtest_current_baseline.json
 ```
 
 Override only the date window:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_backtest.py \
+conda run -n activepm python tools/run_backtest.py \
   --config-json research/configs/baselines/backtest_current_baseline.json \
   --start-date 2022-01-01 \
   --end-date 2026-03-21
@@ -46,7 +46,7 @@ Override only the date window:
 Override one constraint while keeping the rest of the baseline:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_backtest.py \
+conda run -n activepm python tools/run_backtest.py \
   --config-json research/configs/baselines/backtest_current_baseline.json \
   --max-weight 0.06 \
   --turnover-limit 0.35
@@ -58,7 +58,7 @@ Override one constraint while keeping the rest of the baseline:
 Example:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_ab_backtest_pair.py \
+conda run -n activepm python tools/run_ab_backtest_pair.py \
   --pair-name baseline_vs_candidate \
   --start-date 2021-03-01 \
   --end-date 2026-02-28 \

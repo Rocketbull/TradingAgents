@@ -23,29 +23,15 @@ The project started as a fork of TradingAgents. The original TradingAgents code 
 Use the existing project environment when working in this checkout:
 
 ```bash
-.conda/tradingagents/bin/pip install -r requirements.txt
-.conda/tradingagents/bin/pip install -e .
+conda run -n activepm python -m pip install -r requirements.txt
+conda run -n activepm python -m pip install -e .
 ```
 
 For a fresh environment:
 
 ```bash
-conda create -n activeportfolio python=3.13
-conda activate activeportfolio
-pip install -r requirements.txt
-pip install -e .
-```
-
-Clone with the TradingAgents reference submodule:
-
-```bash
-git clone --recurse-submodules <repo-url>
-```
-
-Initialize the submodule in an existing checkout:
-
-```bash
-git submodule update --init --recursive
+conda env create -f environment.yml
+conda activate activepm
 ```
 
 ## Backtest Workflow
@@ -53,14 +39,14 @@ git submodule update --init --recursive
 Run a configured backtest:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_backtest.py \
+conda run -n activepm python tools/run_backtest.py \
   --config-json research/configs/backtest_csi300_baseline_relaxed.json
 ```
 
 Run a matched A/B backtest pair:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_ab_backtest_pair.py \
+conda run -n activepm python tools/run_ab_backtest_pair.py \
   --baseline-config research/configs/signal_daily_laggard_band_default.json \
   --candidate-config research/configs/signal_trailing_1y_worst50.json
 ```
@@ -70,13 +56,13 @@ Run a matched A/B backtest pair:
 Refresh the current CSI300 universe:
 
 ```bash
-.conda/tradingagents/bin/python tools/csi300_symbols.py
+conda run -n activepm python tools/csi300_symbols.py
 ```
 
 Download five years of CSI300 A-share history:
 
 ```bash
-.conda/tradingagents/bin/python tools/download_market_data.py \
+conda run -n activepm python tools/download_market_data.py \
   --vendor ashare \
   --symbols-file data/universe/csi300/current/csi300_symbols.txt \
   --years 5 \
@@ -108,13 +94,13 @@ Useful guides:
 Run the full test suite:
 
 ```bash
-.conda/tradingagents/bin/python -m pytest -q
+conda run -n activepm python -m pytest -q
 ```
 
 Run the portfolio/backtest subset:
 
 ```bash
-.conda/tradingagents/bin/python -m pytest -q tests/test_portfolio_pipeline.py tests/test_backtest_engine.py
+conda run -n activepm python -m pytest -q tests/test_portfolio_pipeline.py tests/test_backtest_engine.py
 ```
 
 ## TradingAgents Reference

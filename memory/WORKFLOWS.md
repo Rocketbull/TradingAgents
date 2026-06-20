@@ -1,12 +1,12 @@
 # Workflow Memory
 
 ## Common Commands
-- Run backtest: `.conda/tradingagents/bin/python tools/run_backtest.py --config-json <config>`
-- Run A/B backtest pair: `.conda/tradingagents/bin/python tools/run_ab_backtest_pair.py --baseline-config <config> --candidate-config <config>`
-- Build backtest history index: `/home/rockebull/mambaforge/bin/python tools/build_backtest_index.py`
-- Run tests: `.conda/tradingagents/bin/python -m pytest -q`
-- Run one test: `.conda/tradingagents/bin/python -m pytest -q tests/test_y_finance_history.py`
-- Run portfolio/backtest tests: `.conda/tradingagents/bin/python -m pytest -q tests/test_portfolio_pipeline.py tests/test_backtest_engine.py`
+- Run backtest: `conda run -n activepm python tools/run_backtest.py --config-json <config>`
+- Run A/B backtest pair: `conda run -n activepm python tools/run_ab_backtest_pair.py --baseline-config <config> --candidate-config <config>`
+- Build backtest history index: `conda run -n activepm python tools/build_backtest_index.py`
+- Run tests: `conda run -n activepm python -m pytest -q`
+- Run one test: `conda run -n activepm python -m pytest -q tests/test_y_finance_history.py`
+- Run portfolio/backtest tests: `conda run -n activepm python -m pytest -q tests/test_portfolio_pipeline.py tests/test_backtest_engine.py`
 
 ## Validation Before Handoff
 - Run targeted tests for touched modules.

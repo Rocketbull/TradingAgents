@@ -14,7 +14,7 @@ for the signal built from:
 ## 1) Run Combined Signal Research
 
 ```bash
-.conda/tradingagents/bin/python research/signal_sector_momentum_top2.py \
+conda run -n activepm python research/signal_sector_momentum_top2.py \
   --start-date 2021-03-01 \
   --end-date 2026-02-28 \
   --universe-source sp500_snapshot \

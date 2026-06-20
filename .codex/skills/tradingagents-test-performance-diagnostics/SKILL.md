@@ -6,12 +6,12 @@ description: Diagnose slow or regressed pytest performance in the TradingAgents 
 # TradingAgents Test Performance Diagnostics
 
 ## Quick Start
-1. Use repo env binaries: `.conda/tradingagents/bin/python`.
+1. Use the project environment: `conda run -n activepm python`.
 2. Record baseline timings with durations:
-   - `.conda/tradingagents/bin/python -m pytest -q --durations=25`
+   - `conda run -n activepm python -m pytest -q --durations=25`
 3. Re-run only suspect files or tests:
-   - `.conda/tradingagents/bin/python -m pytest -q tests/test_backtest_engine.py --durations=10`
-   - `.conda/tradingagents/bin/python -m pytest -q -k "optimizer and not slow" --durations=10`
+   - `conda run -n activepm python -m pytest -q tests/test_backtest_engine.py --durations=10`
+   - `conda run -n activepm python -m pytest -q -k "optimizer and not slow" --durations=10`
 4. Compare before/after timings and report deltas.
 
 ## Workflow
@@ -57,15 +57,15 @@ description: Diagnose slow or regressed pytest performance in the TradingAgents 
 
 ## Command Patterns
 - Full quick baseline:
-  - `.conda/tradingagents/bin/python -m pytest -q --durations=25`
+  - `conda run -n activepm python -m pytest -q --durations=25`
 - Module timing:
-  - `.conda/tradingagents/bin/python -m pytest -q tests/test_portfolio_pipeline.py --durations=20`
+  - `conda run -n activepm python -m pytest -q tests/test_portfolio_pipeline.py --durations=20`
 - One test timing:
-  - `.conda/tradingagents/bin/python -m pytest -q tests/test_portfolio_pipeline.py::test_optimizer_enforces_active_weight_cap --durations=5`
+  - `conda run -n activepm python -m pytest -q tests/test_portfolio_pipeline.py::test_optimizer_enforces_active_weight_cap --durations=5`
 - Fail-fast while iterating:
-  - `.conda/tradingagents/bin/python -m pytest -q -x --durations=10`
+  - `conda run -n activepm python -m pytest -q -x --durations=10`
 
 ## Guardrails
-- Use `.conda/tradingagents/bin/python` for all pytest runs.
+- Use `conda run -n activepm python` for all pytest runs.
 - Keep comparisons apples-to-apples: same test selection, same env, same data window.
 - Do not claim performance improvements without measured before/after evidence.

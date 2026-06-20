@@ -47,7 +47,7 @@ Examples:
 Run:
 
 ```bash
-.conda/tradingagents/bin/python tools/csi300_symbols.py
+conda run -n activepm python tools/csi300_symbols.py
 ```
 
 This writes:
@@ -74,7 +74,7 @@ The shared market downloader now supports:
 Download all current CSI300 constituents for the last 5 years:
 
 ```bash
-.conda/tradingagents/bin/python tools/download_market_data.py \
+conda run -n activepm python tools/download_market_data.py \
   --vendor ashare \
   --symbols-file data/universe/csi300/current/csi300_symbols.txt \
   --years 5 \
@@ -84,7 +84,7 @@ Download all current CSI300 constituents for the last 5 years:
 Equivalent direct universe fetch:
 
 ```bash
-.conda/tradingagents/bin/python tools/download_market_data.py \
+conda run -n activepm python tools/download_market_data.py \
   --vendor ashare \
   --csi300 \
   --years 5 \
@@ -94,7 +94,7 @@ Equivalent direct universe fetch:
 Download a smaller manual set:
 
 ```bash
-.conda/tradingagents/bin/python tools/download_market_data.py \
+conda run -n activepm python tools/download_market_data.py \
   --vendor ashare \
   --symbols SZ000001 SH600519 \
   --start-date 2024-01-01 \

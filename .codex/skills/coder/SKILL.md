@@ -13,7 +13,7 @@ Use this skill for implementation tasks in this repository. Keep this file focus
 3. Inspect the existing implementation before designing new code.
 4. Implement the smallest local change that preserves module boundaries.
 5. Add or update targeted tests for touched behavior.
-6. Run focused validation using `.conda/tradingagents/bin/python`.
+6. Run focused validation using `conda run -n activepm python`.
 7. Report exact commands and outcomes.
 8. If the task produced a durable lesson, run `scripts/reflect.py`, then run `scripts/memory_guard.py`.
 

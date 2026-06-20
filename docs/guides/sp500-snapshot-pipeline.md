@@ -40,7 +40,7 @@ Required columns:
 Generate weekly snapshots with constant latest membership (placeholder mode):
 
 ```bash
-.conda/tradingagents/bin/python tools/build_sp500_snapshots.py \
+conda run -n activepm python tools/build_sp500_snapshots.py \
   --start-date 2020-01-01 \
   --end-date 2026-03-01 \
   --freq W-FRI \
@@ -51,7 +51,7 @@ Generate weekly snapshots with constant latest membership (placeholder mode):
 Generate snapshots using your own events CSV:
 
 ```bash
-.conda/tradingagents/bin/python tools/build_sp500_snapshots.py \
+conda run -n activepm python tools/build_sp500_snapshots.py \
   --start-date 2020-01-01 \
   --end-date 2026-03-01 \
   --freq W-FRI \
@@ -63,7 +63,7 @@ Generate snapshots using your own events CSV:
 Generate snapshots from Wikipedia recent changes table (limited history):
 
 ```bash
-.conda/tradingagents/bin/python tools/build_sp500_snapshots.py \
+conda run -n activepm python tools/build_sp500_snapshots.py \
   --start-date 2020-01-01 \
   --end-date 2026-03-01 \
   --freq W-FRI \

@@ -8,7 +8,7 @@ This research runner now supports Grinold-style diagnostics and reproducible run
 ## Run with frozen config
 
 ```bash
-PYTHONPATH=. .conda/tradingagents/bin/python research/alpha_flat_volume_breakout.py \
+PYTHONPATH=. conda run -n activepm python research/alpha_flat_volume_breakout.py \
   --config-json research/configs/alpha_flat_volume_breakout_default.json \
   --run-tag smoke_grinold_fvb \
   --save-by-date

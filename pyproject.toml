@@ -13,8 +13,10 @@ dependencies = [
     "matplotlib>=3.9,<3.11",
     "numpy>=2,<3",
     "pandas>=2.3.0,<3.0",
+    "python-dateutil>=2.9.0",
     "pyarrow>=21.0.0",
     "pytz>=2025.2",
+    "scipy>=1.15,<2",
     "requests>=2.32.4",
     "PyPortfolioOpt>=1.5.6",
     "setuptools>=80.9.0",
@@ -23,6 +25,11 @@ dependencies = [
     "typing-extensions>=4.14.0",
     "xlrd>=2.0.1",
     "yfinance>=0.2.63",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
 ]
 
 [tool.setuptools.packages.find]

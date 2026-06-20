@@ -93,7 +93,7 @@ config["alpha_signals"] = ["sec_mom_top2"]
 CLI usage (single alpha selection by name):
 
 ```bash
-.conda/tradingagents/bin/python tools/run_backtest.py \
+conda run -n activepm python tools/run_backtest.py \
   --start-date 2024-01-01 \
   --end-date 2025-12-31 \
   --alpha-signal sec_mom_top2
@@ -148,7 +148,7 @@ config = apply_alpha_profile(config, "sp500_gated_vol_confirmed")
 For full engine/backtest promotion, use repo-tracked JSON config files and run:
 
 ```bash
-.conda/tradingagents/bin/python tools/run_backtest.py \
+conda run -n activepm python tools/run_backtest.py \
   --config-json research/configs/baselines/backtest_current_baseline.json
 ```
 
@@ -165,7 +165,7 @@ CLI flags still override the JSON file when you need one-off changes.
 Use the profile research runner to evaluate per-factor and composite diagnostics on SP500 universe snapshots:
 
 ```bash
-.conda/tradingagents/bin/python research/alpha_profile_sp500.py \
+conda run -n activepm python research/alpha_profile_sp500.py \
   --config-json research/configs/alpha_profile_sp500_diversified_v1.json
 ```
 
@@ -173,14 +173,14 @@ Use the profile research runner to evaluate per-factor and composite diagnostics
 For standard factor tear-sheet diagnostics (IC, quantiles, turnover/autocorr), use:
 
 ```bash
-.conda/tradingagents/bin/python research/alpha_alphalens_adapter.py \
+conda run -n activepm python research/alpha_alphalens_adapter.py \
   --config-json research/configs/alpha_alphalens_mom3m_sample.json
 ```
 
 Then render tearsheet figures:
 
 ```bash
-.conda/tradingagents/bin/python research/alpha_alphalens_tearsheet.py \
+conda run -n activepm python research/alpha_alphalens_tearsheet.py \
   --factor-data research/output/<run_tag>/factor_data.parquet \
   --out-dir research/output/<run_tag>/tearsheet_png
 ```

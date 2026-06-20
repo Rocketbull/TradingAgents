@@ -32,9 +32,9 @@ If those cannot be named, do not add the abstraction.
 Do not add frameworks, registries, plugin systems, config layers, generic adapters, or new dependencies unless the current task cannot be solved cleanly without them.
 
 ## Environment
-- Use project env binaries from `.conda/tradingagents/bin/`.
-- Use `.conda/tradingagents/bin/python` for Python and pytest commands.
-- Use `.conda/tradingagents/bin/pip` for dependency commands.
+- Always run project commands in the `activepm` Conda environment.
+- Use `conda run -n activepm python` for Python and pytest commands.
+- Use `conda run -n activepm python -m pip` for dependency commands.
 - Do not add dependencies unless required.
 
 ## Validation

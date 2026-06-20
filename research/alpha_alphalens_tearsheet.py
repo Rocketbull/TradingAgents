@@ -16,7 +16,7 @@ try:
 except Exception as exc:  # pragma: no cover
     raise RuntimeError(
         "alphalens-reloaded is required. Install with: "
-        ".conda/tradingagents/bin/pip install alphalens-reloaded"
+        "conda run -n activepm python -m pip install alphalens-reloaded"
     ) from exc
 
 

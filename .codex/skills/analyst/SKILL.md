@@ -22,8 +22,8 @@ description: Analyze TradingAgents test and backtest results. Use for pytest tim
 4. State recommendation explicitly: keep, reject, or run further sweep.
 
 ## Useful Commands
-- Pytest durations: `.conda/tradingagents/bin/python -m pytest -q --durations=25`
-- Parse latest A/B comparison quickly via `.conda/tradingagents/bin/python - <<'PY' ...` and JSON.
+- Pytest durations: `conda run -n activepm python -m pytest -q --durations=25`
+- Parse the latest A/B comparison with `conda run -n activepm python` and JSON.
 
 ## Reporting Rules
 - Report numeric deltas with signs.

@@ -7,7 +7,7 @@ This note explains the new IC-gating statistics added in `research/common/grinol
 Run command used:
 
 ```bash
-PYTHONPATH=. .conda/tradingagents/bin/python research/alpha_btc_gld_correlation.py \
+PYTHONPATH=. conda run -n activepm python research/alpha_btc_gld_correlation.py \
   --start-date 2024-01-01 \
   --end-date 2026-02-12 \
   --universe-source sp500_snapshot \

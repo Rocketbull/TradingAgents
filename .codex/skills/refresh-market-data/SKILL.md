@@ -28,13 +28,7 @@ Treat repo language as:
 
 ## Interpreter
 
-Prefer `.conda/tradingagents/bin/python`.
-
-If that path does not exist in the current checkout, use the working fallback interpreter already validated for this repo:
-
-- `/home/rockebull/mambaforge/bin/python`
-
-Report which interpreter you used.
+Use `conda run -n activepm python` for all Python commands.
 
 ## Default Refresh Behavior
 
