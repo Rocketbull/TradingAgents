@@ -156,3 +156,44 @@ def test_build_backtest_index_defaults_to_unreviewed_without_decisions(tmp_path:
     assert result.latest_pairs.iloc[0]["decision_status"] == "unreviewed"
     assert "lagged baseline" in result.latest_pairs.iloc[0]["brief_result"]
     assert result.configs.iloc[0]["decision_status"] == "unreviewed"
+
+
+def test_build_backtest_index_scans_nested_config_dirs(tmp_path: Path) -> None:
+    backtest_root = tmp_path / "eval_results" / "backtest"
+    config_root = tmp_path / "research" / "configs"
+    decisions_path = config_root / "backtest_decisions.json"
+
+    _write_json(
+        backtest_root / "current_baseline" / "summary.json",
+        {
+            "start_date": "2021-05-23",
+            "end_date": "2026-06-20",
+            "total_return": 3.3,
+            "sharpe": 1.68,
+        },
+    )
+    _write_json(
+        config_root / "baselines" / "backtest_current_baseline.json",
+        {
+            "backtest_start_date": "2021-05-23",
+            "backtest_end_date": "2026-06-20",
+            "backtest_output_dir": "eval_results/backtest/current_baseline",
+            "alpha_signals": ["mom_1m", "mom_3m"],
+        },
+    )
+    _write_json(
+        config_root / "archive" / "backtest_old_baseline.json",
+        {
+            "backtest_output_dir": "eval_results/backtest/old_baseline",
+        },
+    )
+    _write_json(decisions_path, {})
+
+    result = build_backtest_index(
+        backtest_root=backtest_root,
+        config_root=config_root,
+        decisions_path=decisions_path,
+    )
+
+    assert list(result.configs["config_key"]) == ["current_baseline"]
+    assert result.configs.iloc[0]["config_group"] == "baselines"
