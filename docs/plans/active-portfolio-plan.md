@@ -49,7 +49,7 @@ Completed:
   - `docs/guides/alpha-flat-volume-breakout-research-workflow.md`
   - `docs/guides/alphalens-research-workflow.md`
 - Repo-tracked full backtest baseline config:
-  - `research/configs/backtest_current_baseline.json`
+  - `research/configs/baselines/backtest_current_baseline.json`
 - Benchmark-relative construction baseline and TC plumbing improvements:
   - Benchmark proxy weights integrated into backtest rebalance loop.
   - Optimizer supports `active_weight_cap` and optional `tracking_error_target`.

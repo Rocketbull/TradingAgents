@@ -2,7 +2,7 @@
   "configs": {
     "current_baseline": {
       "status": "keep",
-      "note": "Canonical SP500 baseline for current A/B comparisons."
+      "note": "Canonical SP500 baseline for current A/B comparisons. Retained as the default after the 2026-06-20 defensive sleeve v2 review because its edge remains more stable across the full history."
     },
     "csi300_baseline_relaxed": {
       "status": "candidate",
@@ -10,13 +10,13 @@
     },
     "current_baseline_defensive_sleeve_v2": {
       "status": "candidate",
-      "note": "Promising defensive variant. Latest full-window A/B through 2026-06-10 beat baseline on return, Sharpe, drawdown, and tracking error."
+      "note": "Leading alternate baseline candidate. The refreshed 2026-06-20 run improved Sharpe, drawdown, active IR, and turnover versus current_baseline, but subperiod results were mixed, so keep it as a supported defensive profile rather than replacing the canonical default."
     }
   },
   "pairs": {
     "baseline_vs_defensive_sleeve_v2": {
       "status": "candidate",
-      "note": "Latest full-window run through 2026-06-10 favored defensive_sleeve_v2 over baseline."
+      "note": "Latest refreshed comparison through 2026-06-20 favored defensive_sleeve_v2 on full-window risk-adjusted and implementation metrics, but the subperiod read was mixed, so treat it as evidence for an alternate defensive profile rather than an outright baseline replacement."
     },
     "baseline_vs_defensive_sleeve_v2_postfix": {
       "status": "rejected",

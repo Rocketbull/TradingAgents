@@ -149,7 +149,7 @@ For full engine/backtest promotion, use repo-tracked JSON config files and run:
 
 ```bash
 .conda/tradingagents/bin/python tools/run_backtest.py \
-  --config-json research/configs/backtest_current_baseline.json
+  --config-json research/configs/baselines/backtest_current_baseline.json
 ```
 
 `--config-json` is the full backtest promotion layer:
