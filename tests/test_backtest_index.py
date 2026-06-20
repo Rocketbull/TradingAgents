@@ -73,7 +73,7 @@ def test_build_backtest_index_tracks_latest_pair_and_config_decisions(tmp_path: 
         },
     )
     _write_json(
-        config_root / "backtest_current_baseline.json",
+        config_root / "baselines" / "backtest_current_baseline.json",
         {
             "backtest_start_date": "2021-05-23",
             "backtest_end_date": "2026-06-10",
@@ -82,7 +82,7 @@ def test_build_backtest_index_tracks_latest_pair_and_config_decisions(tmp_path: 
         },
     )
     _write_json(
-        config_root / "backtest_current_baseline_defensive_sleeve_v2.json",
+        config_root / "baselines" / "backtest_current_baseline_defensive_sleeve_v2.json",
         {
             "backtest_start_date": "2021-05-23",
             "backtest_end_date": "2026-06-10",

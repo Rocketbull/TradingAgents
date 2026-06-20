@@ -129,7 +129,7 @@ def test_build_run_manifest_captures_lifecycle_and_artifacts(tmp_path: Path) -> 
     manifest = build_run_manifest(
         out_dir=out_dir,
         config=config,
-        config_json="research/configs/backtest_current_baseline.json",
+        config_json="research/configs/baselines/backtest_current_baseline.json",
         summary=summary,
         run_status="candidate",
         keep_run=True,
@@ -139,7 +139,7 @@ def test_build_run_manifest_captures_lifecycle_and_artifacts(tmp_path: Path) -> 
     assert manifest["run_name"] == "sample_run"
     assert manifest["status"] == "candidate"
     assert manifest["keep"] is True
-    assert manifest["config_json"] == "research/configs/backtest_current_baseline.json"
+    assert manifest["config_json"] == "research/configs/baselines/backtest_current_baseline.json"
     assert manifest["start_date"] == "2021-05-23"
     assert manifest["end_date"] == "2026-06-20"
     assert manifest["artifacts"]["summary_json"].endswith("summary.json")

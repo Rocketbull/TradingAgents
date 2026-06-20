@@ -21,7 +21,7 @@ This means a reusable JSON file can define the baseline, while a one-off CLI com
 ## Current Reusable Baseline
 The current repo-tracked full backtest baseline is:
 
-- `research/configs/backtest_current_baseline.json`
+- `research/configs/baselines/backtest_current_baseline.json`
 
 It captures the stronger monthly, snapshot-aware, liquidity-filtered SP500 setup promoted from the saved A/B run.
 
@@ -31,14 +31,14 @@ Run the current baseline exactly as saved:
 
 ```bash
 .conda/tradingagents/bin/python tools/run_backtest.py \
-  --config-json research/configs/backtest_current_baseline.json
+  --config-json research/configs/baselines/backtest_current_baseline.json
 ```
 
 Override only the date window:
 
 ```bash
 .conda/tradingagents/bin/python tools/run_backtest.py \
-  --config-json research/configs/backtest_current_baseline.json \
+  --config-json research/configs/baselines/backtest_current_baseline.json \
   --start-date 2022-01-01 \
   --end-date 2026-03-21
 ```
@@ -47,7 +47,7 @@ Override one constraint while keeping the rest of the baseline:
 
 ```bash
 .conda/tradingagents/bin/python tools/run_backtest.py \
-  --config-json research/configs/backtest_current_baseline.json \
+  --config-json research/configs/baselines/backtest_current_baseline.json \
   --max-weight 0.06 \
   --turnover-limit 0.35
 ```
@@ -62,7 +62,7 @@ Example:
   --pair-name baseline_vs_candidate \
   --start-date 2021-03-01 \
   --end-date 2026-02-28 \
-  --config-a-json research/configs/backtest_current_baseline.json \
+  --config-a-json research/configs/baselines/backtest_current_baseline.json \
   --config-b-json research/configs/backtest_candidate.json \
   --label-a current_baseline \
   --label-b candidate
@@ -179,7 +179,7 @@ Plain-English interpretation:
 The recent SP500 baseline experiments are a useful example for new researchers.
 
 Baseline config:
-- `research/configs/backtest_current_baseline.json`
+- `research/configs/baselines/backtest_current_baseline.json`
 
 Stronger candidate family:
 - `research/configs/backtest_current_baseline_vol_confirmed_for_breakout_gate.json`
@@ -205,7 +205,7 @@ For this reason, a gated replacement can outperform a larger ungated momentum st
 
 ## Recommended Workflow
 
-1. Start from `research/configs/backtest_current_baseline.json`.
+1. Start from `research/configs/baselines/backtest_current_baseline.json`.
 2. Copy it to a new candidate JSON under `research/configs/`.
 3. Change only the fields you are testing.
 4. Run `tools/run_ab_backtest_pair.py` with both files.

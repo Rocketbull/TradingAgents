@@ -253,7 +253,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--baseline-config-json",
-        default="research/configs/backtest_current_baseline.json",
+        default="research/configs/baselines/backtest_current_baseline.json",
         help="Canonical production baseline config used to resolve the latest baseline-family run.",
     )
     return parser.parse_args()
