@@ -222,6 +222,8 @@ class BacktestEngine:
         )
 
         initial_capital = float(self.config.get("initial_capital", self.config.get("portfolio_value", 1_000_000.0)))
+        construction_mode = str(self.config.get("portfolio_construction_mode", "optimizer")).lower()
+        benchmark_hedge_ratio = max(0.0, float(self.config.get("benchmark_hedge_ratio", 0.0)))
         current_weights = {s: 0.0 for s in tradable_prices.columns}
         init_universe = per_date_universe.get(rebalance_dates[0], list(tradable_prices.columns))
         current_weights.update(self._equal_weights(init_universe))
@@ -292,9 +294,6 @@ class BacktestEngine:
             )
             if history.shape[1] < 2 or history.shape[0] < warmup_rows:
                 continue
-            signals = list(
-                self.config.get("alpha_signals", ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"])
-            )
             raw_regime = self._detect_regime(close_prices.loc[:rebalance_date])
             regime_label, switched, switch_reason = self._apply_regime_stability(
                 raw_regime=raw_regime,
@@ -312,50 +311,59 @@ class BacktestEngine:
             regime["switched"] = bool(switched)
             regime["switch_reason"] = str(switch_reason)
             regime["hold_count"] = int(applied_regime_hold_count)
-            active_alpha_model = self.alpha_model
+
             active_profile = None
-            if self.regime_model is not None:
-                active_alpha_model, signals, active_profile = self._alpha_for_regime(regime["label"])
-            components = active_alpha_model.component_scores(
-                alpha_history,
-                volumes=volume_history,
-                signals=signals,
-            )
-            raw_components = active_alpha_model.raw_component_scores(
-                alpha_history,
-                volumes=volume_history,
-                signals=signals,
-            )
-            components = components.reindex(history.columns).fillna(0.0)
-            raw_components = raw_components.reindex(history.columns).fillna(0.0)
-            alpha_scores, alpha_weights = active_alpha_model.ic_weighted_alpha(
-                components,
-                ic_history=signal_ic_history,
-                ic_lookback=int(self.config.get("ic_lookback_rebalances", 26)),
-                weighting_mode=str(self.config.get("ic_weighting_mode", "positive")),
-                corr_penalty=float(self.config.get("alpha_corr_penalty", 0.35)),
-                min_abs_weight=float(self.config.get("alpha_min_ic_weight", 0.0)),
-                prev_weights=prev_alpha_weights,
-                weight_smoothing=float(self.config.get("alpha_weight_smoothing", 0.25)),
-                max_signal_weight=float(self.config.get("alpha_max_signal_weight", 0.35)),
-                ic_ewm_decay=float(self.config.get("ic_ewm_decay", 0.85)),
-                ic_gate_min_mean=self.config.get("ic_gate_min_mean"),
-                ic_gate_use_abs_mean=bool(self.config.get("ic_gate_use_abs_mean", False)),
-                ic_gate_min_tstat=self.config.get("ic_gate_min_tstat"),
-                ic_gate_min_hit_rate=self.config.get("ic_gate_min_hit_rate"),
-                ic_gate_min_samples=int(self.config.get("ic_gate_min_samples", 8)),
-            )
-            signal_weight_series = (
-                pd.Series(alpha_weights, dtype=float)
-                .reindex(components.columns)
-                .fillna(0.0)
-            )
-            raw_alpha_scores = (
-                raw_components.mul(signal_weight_series, axis=1).sum(axis=1)
-                .reindex(alpha_scores.index)
-                .fillna(0.0)
-            )
-            covariance = self.risk_model.covariance(history)
+            if construction_mode == "equal_weight":
+                alpha_scores = pd.Series(0.0, index=history.columns, dtype=float)
+                alpha_weights = {}
+                raw_alpha_scores = pd.Series(0.0, index=history.columns, dtype=float)
+            else:
+                signals = list(
+                    self.config.get("alpha_signals", ["mom_1m", "mom_3m", "mom_6m", "rev_1w", "low_vol"])
+                )
+                active_alpha_model = self.alpha_model
+                if self.regime_model is not None:
+                    active_alpha_model, signals, active_profile = self._alpha_for_regime(regime["label"])
+                components = active_alpha_model.component_scores(
+                    alpha_history,
+                    volumes=volume_history,
+                    signals=signals,
+                )
+                raw_components = active_alpha_model.raw_component_scores(
+                    alpha_history,
+                    volumes=volume_history,
+                    signals=signals,
+                )
+                components = components.reindex(history.columns).fillna(0.0)
+                raw_components = raw_components.reindex(history.columns).fillna(0.0)
+                alpha_scores, alpha_weights = active_alpha_model.ic_weighted_alpha(
+                    components,
+                    ic_history=signal_ic_history,
+                    ic_lookback=int(self.config.get("ic_lookback_rebalances", 26)),
+                    weighting_mode=str(self.config.get("ic_weighting_mode", "positive")),
+                    corr_penalty=float(self.config.get("alpha_corr_penalty", 0.35)),
+                    min_abs_weight=float(self.config.get("alpha_min_ic_weight", 0.0)),
+                    prev_weights=prev_alpha_weights,
+                    weight_smoothing=float(self.config.get("alpha_weight_smoothing", 0.25)),
+                    max_signal_weight=float(self.config.get("alpha_max_signal_weight", 0.35)),
+                    ic_ewm_decay=float(self.config.get("ic_ewm_decay", 0.85)),
+                    ic_gate_min_mean=self.config.get("ic_gate_min_mean"),
+                    ic_gate_use_abs_mean=bool(self.config.get("ic_gate_use_abs_mean", False)),
+                    ic_gate_min_tstat=self.config.get("ic_gate_min_tstat"),
+                    ic_gate_min_hit_rate=self.config.get("ic_gate_min_hit_rate"),
+                    ic_gate_min_samples=int(self.config.get("ic_gate_min_samples", 8)),
+                )
+                signal_weight_series = (
+                    pd.Series(alpha_weights, dtype=float)
+                    .reindex(components.columns)
+                    .fillna(0.0)
+                )
+                raw_alpha_scores = (
+                    raw_components.mul(signal_weight_series, axis=1).sum(axis=1)
+                    .reindex(alpha_scores.index)
+                    .fillna(0.0)
+                )
+                covariance = self.risk_model.covariance(history)
 
             benchmark_weights = self._benchmark_proxy_weights(
                 close_history=today_close_history,
@@ -364,15 +372,25 @@ class BacktestEngine:
                 lookback_days=int(self.config.get("benchmark_weight_lookback_days", 60)),
             ).reindex(alpha_scores.index).fillna(0.0)
             current_subset = {s: float(current_weights.get(s, 0.0)) for s in alpha_scores.index}
-
-            target_weights, optimizer_details = self.optimizer.optimize(
-                alpha_scores=alpha_scores,
-                covariance=covariance,
-                current_weights=current_subset,
-                benchmark_weights=benchmark_weights.to_dict(),
-                sector_map={s: sector_map.get(s, "") for s in alpha_scores.index},
-                return_details=True,
-            )
+            if construction_mode == "equal_weight":
+                equal_subset = self._equal_weights(alpha_scores.index)
+                target_weights = dict(equal_subset)
+                optimizer_details = {
+                    "backend": "equal_weight",
+                    "used_fallback": False,
+                    "audit_unconstrained_active_weights": {s: 0.0 for s in alpha_scores.index},
+                    "raw_target_weights": dict(equal_subset),
+                    "target_weights": dict(equal_subset),
+                }
+            else:
+                target_weights, optimizer_details = self.optimizer.optimize(
+                    alpha_scores=alpha_scores,
+                    covariance=covariance,
+                    current_weights=current_subset,
+                    benchmark_weights=benchmark_weights.to_dict(),
+                    sector_map={s: sector_map.get(s, "") for s in alpha_scores.index},
+                    return_details=True,
+                )
             subset_target_weights = {s: float(target_weights.get(s, 0.0)) for s in alpha_scores.index}
             target_weights = {s: subset_target_weights.get(s, 0.0) for s in tradable_prices.columns}
             raw_target_subset = optimizer_details.get("raw_target_weights", subset_target_weights)
@@ -408,21 +426,25 @@ class BacktestEngine:
 
             price_now = tradable_prices.loc[rebalance_date].reindex(alpha_scores.index).astype(float)
             signal_ic_now: Dict[str, float] = {}
+            hedge_return = 0.0
             if is_terminal_rebalance:
                 symbol_returns = {symbol: 0.0 for symbol in alpha_scores.index}
                 realized_series = pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0)
                 nav_after_period = nav_after_costs
                 portfolio_return = 0.0
                 benchmark_return = 0.0
-                metrics = {
-                    "information_coefficient": float("nan"),
-                    "breadth_proxy": float("nan"),
-                    "transfer_coefficient": float("nan"),
-                    "transfer_coefficient_corrected": float("nan"),
-                    "transfer_coefficient_legacy_proxy": float("nan"),
-                    "transfer_coefficient_proxy": float("nan"),
-                    "realized_information_ratio": float("nan"),
-                }
+                if construction_mode == "equal_weight":
+                    metrics = {}
+                else:
+                    metrics = {
+                        "information_coefficient": float("nan"),
+                        "breadth_proxy": float("nan"),
+                        "transfer_coefficient": float("nan"),
+                        "transfer_coefficient_corrected": float("nan"),
+                        "transfer_coefficient_legacy_proxy": float("nan"),
+                        "transfer_coefficient_proxy": float("nan"),
+                        "realized_information_ratio": float("nan"),
+                    }
                 horizon_metrics = {}
                 for signal_name in components.columns:
                     signal_ic_now[signal_name] = float("nan")
@@ -430,12 +452,13 @@ class BacktestEngine:
                 price_next = tradable_prices.loc[next_date].reindex(alpha_scores.index).astype(float)
                 symbol_returns = ((price_next / price_now) - 1.0).replace([pd.NA], 0.0).fillna(0.0).to_dict()
                 realized_series = pd.Series(symbol_returns).reindex(alpha_scores.index).fillna(0.0)
-                for signal_name in components.columns:
-                    ic_val = self.attribution.cross_sectional_ic(
-                        components[signal_name].reindex(alpha_scores.index), realized_series
-                    )
-                    signal_ic_now[signal_name] = float(ic_val)
-                    signal_ic_history.setdefault(signal_name, []).append(float(ic_val))
+                if construction_mode != "equal_weight":
+                    for signal_name in components.columns:
+                        ic_val = self.attribution.cross_sectional_ic(
+                            components[signal_name].reindex(alpha_scores.index), realized_series
+                        )
+                        signal_ic_now[signal_name] = float(ic_val)
+                        signal_ic_history.setdefault(signal_name, []).append(float(ic_val))
 
                 nav_after_period, portfolio_return = self.accounting.step_nav(
                     nav_after_rebalance=nav_after_costs,
@@ -445,19 +468,26 @@ class BacktestEngine:
                 bench_now = float(benchmark_series.loc[rebalance_date]) if rebalance_date in benchmark_series.index else 0.0
                 bench_next = float(benchmark_series.loc[next_date]) if next_date in benchmark_series.index else 0.0
                 benchmark_return = (bench_next / bench_now - 1.0) if bench_now > 0 else 0.0
-                metrics = self.attribution.diagnostics(
-                    alpha_scores=alpha_scores,
-                    realized_returns=realized_series,
-                    target_weights=effective_weights,
-                    unconstrained_active_weights=unconstrained_active_weights,
-                    constrained_active_weights=constrained_active_weights,
-                )
-                horizon_metrics = self._horizon_metrics(
-                    close_prices=tradable_prices,
-                    rebalance_dates=rebalance_dates,
-                    rebalance_index=i,
-                    alpha_scores=alpha_scores,
-                )
+                hedge_return = -benchmark_hedge_ratio * benchmark_return
+                portfolio_return += hedge_return
+                nav_after_period = nav_after_costs * (1.0 + portfolio_return)
+                if construction_mode == "equal_weight":
+                    metrics = {}
+                    horizon_metrics = {}
+                else:
+                    metrics = self.attribution.diagnostics(
+                        alpha_scores=alpha_scores,
+                        realized_returns=realized_series,
+                        target_weights=effective_weights,
+                        unconstrained_active_weights=unconstrained_active_weights,
+                        constrained_active_weights=constrained_active_weights,
+                    )
+                    horizon_metrics = self._horizon_metrics(
+                        close_prices=tradable_prices,
+                        rebalance_dates=rebalance_dates,
+                        rebalance_index=i,
+                        alpha_scores=alpha_scores,
+                    )
 
             row = {
                 "trade_date": rebalance_date.strftime("%Y-%m-%d"),
@@ -470,6 +500,9 @@ class BacktestEngine:
                 "executed_turnover": turnover,
                 "turnover_constraint_drag": max(raw_turnover - turnover, 0.0),
                 "cost": total_cost,
+                "construction_mode": construction_mode,
+                "benchmark_hedge_ratio": benchmark_hedge_ratio,
+                "hedge_return": hedge_return,
                 "regime_label": regime["label"],
                 "regime_raw_label": regime["raw_label"],
                 "regime_score": float(regime["score"]),
@@ -501,6 +534,9 @@ class BacktestEngine:
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "benchmark_weights": benchmark_all_weights,
+                    "construction_mode": construction_mode,
+                    "benchmark_hedge_ratio": benchmark_hedge_ratio,
+                    "hedge_return": hedge_return,
                     "unconstrained_active_weights": unconstrained_active_weights,
                     "constrained_active_weights": constrained_active_weights,
                     "alpha_weights": {k: float(v) for k, v in alpha_weights.items()},

@@ -20,8 +20,10 @@ DEFAULT_CONFIG = {
     "dynamic_liquidity_filter": False,
     "liquidity_top_n": 100,
     "liquidity_lookback_days": 60,
+    "portfolio_construction_mode": "optimizer",  # optimizer, equal_weight
     "benchmark_weight_mode": "liquidity_proxy",  # equal, liquidity_proxy
     "benchmark_weight_lookback_days": 60,
+    "benchmark_hedge_ratio": 0.0,  # Optional short benchmark overlay applied to period returns.
     "rebalance_frequency": "weekly",      # daily, weekly, monthly
     "monthly_rebalance_offset_days": 0,   # trading-day offset from month-end for monthly rebalances
     "max_weight": 0.05,

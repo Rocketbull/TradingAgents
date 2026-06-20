@@ -201,6 +201,67 @@ def test_backtest_engine_applies_named_alpha_profile():
     ]
 
 
+def test_backtest_engine_equal_weight_mode_and_benchmark_hedge(tmp_path: Path):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_equal_weight_hedged"),
+            "portfolio_construction_mode": "equal_weight",
+            "benchmark_hedge_ratio": 0.5,
+            "dynamic_liquidity_filter": False,
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+        }
+    )
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=_close_frame())
+
+    first = result["rebalance_log"][0]
+    assert first["construction_mode"] == "equal_weight"
+    assert first["benchmark_hedge_ratio"] == 0.5
+    assert first["target_weights"]["AAA"] == 0.5
+    assert first["target_weights"]["BBB"] == 0.5
+
+
+def test_backtest_engine_benchmark_hedge_reduces_period_return(tmp_path: Path):
+    base_config = DEFAULT_CONFIG.copy()
+    base_config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-02-28",
+            "rebalance_frequency": "weekly",
+            "benchmark_symbol": "SPY",
+            "portfolio_construction_mode": "equal_weight",
+            "dynamic_liquidity_filter": False,
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+        }
+    )
+    unhedged = dict(base_config)
+    unhedged["backtest_output_dir"] = str(tmp_path / "run_equal_weight_unhedged")
+    hedged = dict(base_config)
+    hedged["backtest_output_dir"] = str(tmp_path / "run_equal_weight_hedged")
+    hedged["benchmark_hedge_ratio"] = 0.5
+
+    unhedged_result = BacktestEngine(unhedged).run(close_prices=_close_frame())
+    hedged_result = BacktestEngine(hedged).run(close_prices=_close_frame())
+
+    first_unhedged = unhedged_result["equity_curve"].iloc[0]
+    first_hedged = hedged_result["equity_curve"].iloc[0]
+    expected_hedged_return = float(first_unhedged["portfolio_return"]) - 0.5 * float(
+        first_unhedged["benchmark_return"]
+    )
+    assert abs(float(first_hedged["portfolio_return"]) - expected_hedged_return) < 1e-12
+
+
 def test_backtest_engine_regime_switch_logs_state(tmp_path: Path):
     config = DEFAULT_CONFIG.copy()
     config.update(
