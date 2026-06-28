@@ -138,6 +138,34 @@ def test_monthly_rebalance_offset_days_shifts_from_month_end() -> None:
     ]
 
 
+def test_monthly_rebalance_negative_offset_anchors_to_calendar_month_end_for_partial_month() -> None:
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "rebalance_frequency": "monthly",
+            "monthly_rebalance_offset_days": -2,
+        }
+    )
+    engine = BacktestEngine(config)
+    idx = pd.bdate_range("2026-06-01", "2026-06-26")
+    dates = engine._rebalance_dates(idx)
+    assert [d.strftime("%Y-%m-%d") for d in dates] == ["2026-06-26"]
+
+
+def test_monthly_rebalance_month_end_skips_incomplete_month() -> None:
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "rebalance_frequency": "monthly",
+            "monthly_rebalance_offset_days": 0,
+        }
+    )
+    engine = BacktestEngine(config)
+    idx = pd.bdate_range("2026-06-01", "2026-06-26")
+    dates = engine._rebalance_dates(idx)
+    assert dates == []
+
+
 def test_monthly_rebalance_positive_offset_clamps_within_month() -> None:
     config = DEFAULT_CONFIG.copy()
     config.update(

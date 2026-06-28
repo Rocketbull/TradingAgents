@@ -1091,13 +1091,20 @@ class BacktestEngine:
             grouped = pd.Series(dates, index=dates).groupby([dates.year, dates.month])
             offset = int(self.config.get("monthly_rebalance_offset_days", 0))
             picks: list[pd.Timestamp] = []
-            for _, month_dates in grouped:
+            for (year, month), month_dates in grouped:
                 month_idx = pd.DatetimeIndex(month_dates.values).sort_values()
                 if len(month_idx) == 0:
                     continue
-                pos = len(month_idx) - 1 + offset
-                pos = max(0, min(pos, len(month_idx) - 1))
-                picks.append(pd.Timestamp(month_idx[pos]))
+                month_end = pd.Timestamp(year=int(year), month=int(month), day=1) + pd.offsets.BMonthEnd(0)
+                target = month_end + pd.offsets.BDay(offset) if offset < 0 else month_end
+                if target > month_idx[-1]:
+                    continue
+                if target < month_idx[0]:
+                    picks.append(pd.Timestamp(month_idx[0]))
+                    continue
+                eligible = month_idx[month_idx <= target]
+                if len(eligible) > 0:
+                    picks.append(pd.Timestamp(eligible[-1]))
             return picks
         # weekly default: last trading day of each ISO week
         iso = dates.isocalendar()

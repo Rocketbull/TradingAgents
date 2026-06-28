@@ -2,6 +2,7 @@ typing-extensions
 matplotlib>=3.9,<3.11
 numpy>=2,<3
 pandas>=2.3.0,<3.0
+lxml>=6.1.1,<7
 python-dateutil>=2.9.0
 pyarrow>=21.0.0
 pytz>=2025.2
