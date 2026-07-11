@@ -13,3 +13,6 @@ When a backtest viewer starts depending on a new artifact such as daily_market_v
 
 ## 2026-06-20: Attach lifecycle metadata at artifact creation [artifacts,tooling,cleanup]
 Disposable backtest and research outputs are hard to prune safely after the fact. Write manifest status/keep metadata when runs are created, and let pruning tools fall back to explicit decision registries only for older historical runs.
+
+## 2026-07-04: SPY fragility v2 rule [fragility,regime]
+SPY fragility dashboard v2 risk_off now uses macro_score >= 2 or event_score >= 3; the prior confirmation-heavy rule is retained as fragility_regime_v1 for comparison.
