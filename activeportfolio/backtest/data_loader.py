@@ -227,14 +227,16 @@ class LocalParquetDataLoader:
     def _pick_parquet(
         self, symbol_dir: Path, start_dt: datetime, end_dt: datetime
     ) -> Optional[Path]:
-        candidates: list[tuple[int, datetime, datetime, Path]] = []
+        candidates: list[tuple[int, datetime, float, Path]] = []
         for path in symbol_dir.glob("history_*.parquet"):
             parsed = self._parse_history_name(path)
             if parsed is None:
                 continue
             file_start, file_end = parsed
             covers_range = 1 if (file_start <= start_dt and file_end >= end_dt) else 0
-            candidates.append((covers_range, file_end, file_start, path))
+            # If files have the same nominal end date, prefer the wider window. This
+            # avoids an older rolling-window file masking a newer fixed-window refresh.
+            candidates.append((covers_range, file_end, -file_start.timestamp(), path))
 
         if not candidates:
             return None

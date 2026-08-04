@@ -377,12 +377,28 @@ class BacktestEngine:
                 )
                 covariance = self.risk_model.covariance(history)
 
-            benchmark_weights = self._benchmark_proxy_weights(
+            benchmark_all_series = self._benchmark_proxy_weights(
                 close_history=today_close_history,
                 volume_history=today_volume_history,
                 mode=str(self.config.get("benchmark_weight_mode", "liquidity_proxy")),
                 lookback_days=int(self.config.get("benchmark_weight_lookback_days", 60)),
-            ).reindex(alpha_scores.index).fillna(0.0)
+            )
+            benchmark_weights = benchmark_all_series.reindex(alpha_scores.index).fillna(0.0)
+            benchmark_sector_weights = (
+                benchmark_all_series.groupby(
+                    pd.Series(
+                        {
+                            s: sector_map.get(s, "")
+                            if isinstance(sector_map.get(s), str) and sector_map.get(s)
+                            else f"Unknown::{s}"
+                            for s in benchmark_all_series.index
+                        }
+                    )
+                )
+                .sum()
+                .astype(float)
+                .to_dict()
+            )
             current_subset = {s: float(current_weights.get(s, 0.0)) for s in alpha_scores.index}
             if construction_mode == "equal_weight":
                 equal_subset = self._equal_weights(alpha_scores.index)
@@ -400,6 +416,7 @@ class BacktestEngine:
                     covariance=covariance,
                     current_weights=current_subset,
                     benchmark_weights=benchmark_weights.to_dict(),
+                    sector_benchmark_weights=benchmark_sector_weights,
                     sector_map={s: sector_map.get(s, "") for s in alpha_scores.index},
                     return_details=True,
                 )
@@ -412,9 +429,8 @@ class BacktestEngine:
             unconstrained_active_weights = {
                 s: float(unconstrained_active_subset.get(s, 0.0)) for s in audit_symbols
             }
-            benchmark_subset = benchmark_weights.to_dict()
             benchmark_all_weights = {
-                s: float(benchmark_subset.get(s, 0.0))
+                s: float(benchmark_all_series.get(s, 0.0))
                 for s in tradable_prices.columns
             }
             raw_turnover = sum(
@@ -548,6 +564,9 @@ class BacktestEngine:
                     "raw_target_weights": {k: float(v) for k, v in raw_target_weights.items()},
                     "target_weights": {k: float(v) for k, v in effective_weights.items()},
                     "benchmark_weights": benchmark_all_weights,
+                    "benchmark_sector_weights": {
+                        k: float(v) for k, v in benchmark_sector_weights.items()
+                    },
                     "construction_mode": construction_mode,
                     "benchmark_hedge_ratio": benchmark_hedge_ratio,
                     "benchmark_overlay": effective_benchmark_overlay,
@@ -637,7 +656,7 @@ class BacktestEngine:
             for row in rebalance_log
         }
         start_date = min(rebalance_by_date)
-        end_date = max(rebalance_by_date)
+        end_date = max(pd.DatetimeIndex(tradable_prices.index))
         trading_index = tradable_prices.index[
             (tradable_prices.index >= start_date) & (tradable_prices.index <= end_date)
         ]

@@ -123,6 +123,72 @@ def test_build_monthly_commentary_context_uses_terminal_row_for_holdings_only(tm
     assert context["rebalance"]["top_holdings_after_rebalance"][0]["symbol"] == "CCC"
 
 
+def test_build_monthly_commentary_context_uses_partial_daily_period(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_partial"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    summary = {
+        "benchmark_symbol": "SPY",
+        "initial_capital": 1_000_000.0,
+        "total_return": 1.5,
+        "sharpe": 1.6,
+        "max_drawdown": -0.10,
+    }
+    (run_dir / "summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    rows = [
+        {
+            "trade_date": "2026-05-29",
+            "next_date": "2026-06-30",
+            "nav_after_costs": 1_050_000.0,
+            "nav_after_period": 1_100_000.0,
+            "portfolio_return": 0.08,
+            "benchmark_return": 0.03,
+            "active_return": 0.05,
+            "target_weights": {"AAA": 0.40, "BBB": 0.35, "CCC": 0.25},
+        },
+        {
+            "trade_date": "2026-06-30",
+            "next_date": "2026-06-30",
+            "nav_before": 1_100_000.0,
+            "nav_after_costs": 1_099_000.0,
+            "cost": 1_000.0,
+            "turnover": 0.25,
+            "orders_count": 8,
+            "terminal_snapshot": 1,
+            "target_weights": {"AAA": 0.20, "BBB": 0.30, "CCC": 0.50},
+            "alpha_weights": {"mom_12m": 0.60, "mom_3m": 0.40},
+            "regime": {"label": "static", "switch_reason": "same_label"},
+            "portfolio_metrics": {"realized_information_ratio": None},
+        },
+    ]
+    with open(run_dir / "rebalance_log.jsonl", "w", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row) + "\n")
+    (run_dir / "daily_market_value.csv").write_text(
+        "\n".join(
+            [
+                "trade_date,portfolio_value,benchmark_value",
+                "2026-06-30,1099000.0,1000000.0",
+                "2026-07-17,1044050.0,1010000.0",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    context = build_monthly_commentary_context(run_dir)
+
+    assert context["analysis_date"] == "2026-07-17"
+    assert context["period_start"] == "2026-06-30"
+    assert context["period_end"] == "2026-07-17"
+    assert context["performance"]["is_partial_period"] is True
+    assert context["performance"]["portfolio_return"] == pytest.approx(-0.05)
+    assert context["performance"]["benchmark_return"] == pytest.approx(0.01)
+    assert context["performance"]["active_return"] == pytest.approx(-0.06)
+    assert context["performance"]["nav_before_current_rebalance"] == pytest.approx(1044050.0)
+
+
 def test_build_monthly_commentary_context_falls_back_to_equity_curve_returns(tmp_path: Path) -> None:
     run_dir = tmp_path / "run_legacy"
     run_dir.mkdir(parents=True, exist_ok=True)

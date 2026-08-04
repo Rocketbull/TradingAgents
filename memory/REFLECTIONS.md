@@ -16,3 +16,9 @@ Disposable backtest and research outputs are hard to prune safely after the fact
 
 ## 2026-07-04: SPY fragility v2 rule [fragility,regime]
 SPY fragility dashboard v2 risk_off now uses macro_score >= 2 or event_score >= 3; the prior confirmation-heavy rule is retained as fragility_regime_v1 for comparison.
+
+## 2026-07-17: Daily backtest carry-forward [backtest,artifacts]
+Daily market value artifacts should carry latest rebalance weights forward through the latest available tradable date, even when monthly rebalance logic skips an incomplete month. Partial-month commentary should prefer daily_market_value over equity_curve so active return includes the current stub period.
+
+## 2026-07-30: True sector benchmark weights [optimizer,backtest]
+Sector-active caps should compare portfolio sector totals against full-universe benchmark sector totals, not benchmark weights re-normalized inside the liquid optimization subset. Keep liquid-normalized benchmark weights for per-name active and tracking-error constraints, and pass separate sector benchmark totals for sector-active constraints and audit logs.

@@ -120,6 +120,37 @@ def test_backtest_engine_persists_terminal_monthly_rebalance(tmp_path: Path):
     assert "`SPY` returned" in commentary
 
 
+def test_daily_market_value_extends_after_last_monthly_rebalance(tmp_path: Path):
+    config = DEFAULT_CONFIG.copy()
+    config.update(
+        {
+            "backtest_start_date": "2024-01-01",
+            "backtest_end_date": "2025-06-13",
+            "rebalance_frequency": "monthly",
+            "benchmark_symbol": "SPY",
+            "backtest_output_dir": str(tmp_path / "run_partial_month"),
+            "portfolio_construction_mode": "equal_weight",
+            "dynamic_liquidity_filter": False,
+            "max_weight": 0.6,
+            "turnover_limit": 0.25,
+            "fetch_missing_sector_data": False,
+            "auto_refresh_sector_cache_on_low_coverage": False,
+        }
+    )
+    engine = BacktestEngine(config)
+    result = engine.run(close_prices=_close_frame_business_days("2024-01-01", "2025-06-13"))
+
+    equity_curve = result["equity_curve"]
+    daily_market_value = result["daily_market_value"]
+
+    assert equity_curve.iloc[-1]["trade_date"] == "2025-05-30"
+    assert daily_market_value.iloc[-1]["trade_date"] == "2025-06-13"
+    assert daily_market_value["is_rebalance"].sum() == len(result["rebalance_log"])
+    assert float(daily_market_value.iloc[-1]["portfolio_value"]) != float(
+        result["summary"]["final_nav"]
+    )
+
+
 def test_monthly_rebalance_offset_days_shifts_from_month_end() -> None:
     config = DEFAULT_CONFIG.copy()
     config.update(

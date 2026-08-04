@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 
 from tools.refresh_sp500_backtest_inputs import (
+    DEFAULT_MARKET_START_DATE,
     build_market_symbol_list,
+    parse_args,
     resolve_market_window,
     run_refresh_pipeline,
     write_sp500_symbol_outputs,
@@ -118,3 +120,11 @@ def test_resolve_market_window_requires_complete_explicit_range() -> None:
         assert "Provide both --start-date and --end-date together" in str(exc)
     else:
         raise AssertionError("Expected ValueError for incomplete explicit date range")
+
+
+def test_parse_args_defaults_to_fixed_market_start(monkeypatch) -> None:
+    monkeypatch.setattr("sys.argv", ["refresh_sp500_backtest_inputs.py", "--skip-fundamentals"])
+
+    args = parse_args()
+
+    assert args.start_date == DEFAULT_MARKET_START_DATE

@@ -24,7 +24,7 @@ When adding or updating market data scripts:
 For constituent-driven downloads:
 1. Use `tools/sp500_symbols.py` to fetch symbols.
 2. Normalize Yahoo tickers by converting `.` to `-`.
-3. Prefer combining with downloader `--sp500` and default `--years 5`.
+3. Prefer combining with downloader `--sp500` and explicit fixed start date `2021-06-27` for recurring baseline refreshes.
 
 ## Benchmark ETF Workflow
 For benchmark and regime context symbols:

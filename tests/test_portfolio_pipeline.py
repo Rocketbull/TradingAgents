@@ -294,6 +294,36 @@ def test_optimizer_enforces_sector_active_weight_cap():
     assert 0.449999 <= util_w <= 0.550001
 
 
+def test_optimizer_uses_true_sector_weights_for_sector_active_cap():
+    symbols = ["T1", "T2", "D1", "D2"]
+    alpha = pd.Series({"T1": 5.0, "T2": 4.0, "D1": -1.0, "D2": -2.0})
+    cov = pd.DataFrame(0.0, index=symbols, columns=symbols)
+    for symbol in symbols:
+        cov.loc[symbol, symbol] = 0.01
+    liquid_benchmark = {"T1": 0.40, "T2": 0.40, "D1": 0.10, "D2": 0.10}
+    true_sector_benchmark = {"Tech": 0.40, "Defensive": 0.60}
+    sectors = {"T1": "Tech", "T2": "Tech", "D1": "Defensive", "D2": "Defensive"}
+    optimizer = PortfolioOptimizer(
+        max_weight=0.80,
+        turnover_limit=1.0,
+        sector_active_weight_cap=0.05,
+    )
+
+    target = optimizer.optimize(
+        alpha_scores=alpha,
+        covariance=cov,
+        current_weights=liquid_benchmark,
+        benchmark_weights=liquid_benchmark,
+        sector_benchmark_weights=true_sector_benchmark,
+        sector_map=sectors,
+    )
+
+    tech_w = float(target["T1"]) + float(target["T2"])
+    defensive_w = float(target["D1"]) + float(target["D2"])
+    assert tech_w <= 0.450001
+    assert defensive_w >= 0.549999
+
+
 def test_optimizer_retries_sector_active_projection_solver():
     import cvxpy as cp
 
@@ -334,6 +364,92 @@ def test_optimizer_retries_sector_active_projection_solver():
     util_w = float(target["CCC"]) + float(target["SPY"])
     assert 0.449999 <= tech_w <= 0.550001
     assert 0.449999 <= util_w <= 0.550001
+
+
+def test_optimizer_repairs_sector_active_cap_when_projection_solvers_fail():
+    import cvxpy as cp
+
+    symbols = ["T1", "T2", "T3", "D1", "D2", "D3"]
+    alpha = pd.Series(
+        {"T1": 6.0, "T2": 5.5, "T3": 5.0, "D1": -1.0, "D2": -1.5, "D3": -2.0}
+    )
+    cov = pd.DataFrame(0.0, index=symbols, columns=symbols)
+    for symbol in symbols:
+        cov.loc[symbol, symbol] = 0.01
+    benchmark = {
+        "T1": 0.18,
+        "T2": 0.16,
+        "T3": 0.12,
+        "D1": 0.20,
+        "D2": 0.18,
+        "D3": 0.16,
+    }
+    sectors = {"T1": "Tech", "T2": "Tech", "T3": "Tech", "D1": "Defensive", "D2": "Defensive", "D3": "Defensive"}
+    optimizer = PortfolioOptimizer(
+        max_weight=0.50,
+        active_weight_cap=0.20,
+        turnover_limit=1.0,
+        sector_active_weight_cap=0.05,
+    )
+
+    with patch.object(cp.Problem, "solve", side_effect=ValueError("solver unavailable")):
+        target = optimizer.optimize(
+            alpha_scores=alpha,
+            covariance=cov,
+            current_weights=benchmark,
+            benchmark_weights=benchmark,
+            sector_map=sectors,
+        )
+
+    tech_w = sum(float(target[s]) for s in ["T1", "T2", "T3"])
+    defensive_w = sum(float(target[s]) for s in ["D1", "D2", "D3"])
+    assert 0.409999 <= tech_w <= 0.510001
+    assert 0.489999 <= defensive_w <= 0.590001
+
+
+def test_optimizer_enforces_sector_cap_after_active_cap_projection():
+    symbols = ["T1", "T2", "T3", "D1", "D2", "D3"]
+    alpha = pd.Series(
+        {"T1": 6.0, "T2": 5.5, "T3": 5.0, "D1": -1.0, "D2": -1.5, "D3": -2.0}
+    )
+    cov = pd.DataFrame(0.0, index=symbols, columns=symbols)
+    for symbol in symbols:
+        cov.loc[symbol, symbol] = 0.01
+    benchmark = {
+        "T1": 0.20,
+        "T2": 0.16,
+        "T3": 0.14,
+        "D1": 0.18,
+        "D2": 0.17,
+        "D3": 0.15,
+    }
+    sectors = {
+        "T1": "Tech",
+        "T2": "Tech",
+        "T3": "Tech",
+        "D1": "Defensive",
+        "D2": "Defensive",
+        "D3": "Defensive",
+    }
+    optimizer = PortfolioOptimizer(
+        max_weight=0.50,
+        active_weight_cap=0.20,
+        turnover_limit=1.0,
+        sector_cap=0.55,
+    )
+
+    target = optimizer.optimize(
+        alpha_scores=alpha,
+        covariance=cov,
+        current_weights=benchmark,
+        benchmark_weights=benchmark,
+        sector_map=sectors,
+    )
+
+    tech_w = sum(float(target[s]) for s in ["T1", "T2", "T3"])
+    defensive_w = sum(float(target[s]) for s in ["D1", "D2", "D3"])
+    assert tech_w <= 0.550001
+    assert defensive_w <= 0.550001
 
 
 def test_ic_weighted_alpha_uses_history():

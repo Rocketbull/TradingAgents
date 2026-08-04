@@ -29,6 +29,7 @@ DEFAULT_SNAPSHOT_DIR = Path("data/universe/sp500/snapshots")
 DEFAULT_MARKET_OUT_DIR = Path("data/market")
 DEFAULT_FUNDAMENTALS_OUT_DIR = Path("data/fundamentals/sp500")
 DEFAULT_BENCHMARK_SYMBOL = "SPY"
+DEFAULT_MARKET_START_DATE = "2021-06-27"
 FUNDAMENTALS_COLUMNS = list(extract_row(symbol="", parsed={}).keys())
 
 
@@ -70,19 +71,19 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--start-date",
-        default=None,
-        help="Market history start date YYYY-MM-DD.",
+        default=DEFAULT_MARKET_START_DATE,
+        help=f"Market history start date YYYY-MM-DD (default: {DEFAULT_MARKET_START_DATE}).",
     )
     parser.add_argument(
         "--end-date",
-        default=None,
+        default=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         help="Market history end date YYYY-MM-DD; defaults to today if omitted.",
     )
     parser.add_argument(
         "--years",
         type=int,
         default=5,
-        help="History window in years when start/end are omitted.",
+        help="Legacy history window in years when start/end are omitted by API callers.",
     )
     parser.add_argument(
         "--market-out-dir",

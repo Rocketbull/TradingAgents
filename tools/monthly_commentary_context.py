@@ -39,6 +39,17 @@ def load_equity_curve(run_dir: Path) -> pd.DataFrame | None:
     return pd.read_csv(path)
 
 
+def load_daily_market_value(run_dir: Path) -> pd.DataFrame | None:
+    path = run_dir / "daily_market_value.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path)
+    if "trade_date" not in df.columns:
+        return None
+    df["trade_date"] = pd.to_datetime(df["trade_date"])
+    return df.sort_values("trade_date").reset_index(drop=True)
+
+
 def load_config_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -154,6 +165,7 @@ def build_monthly_commentary_context(run_dir: Path) -> dict[str, Any]:
     summary = load_summary(run_dir)
     rebalance_log = load_rebalance_log(run_dir)
     equity_curve = load_equity_curve(run_dir)
+    daily_market_value = load_daily_market_value(run_dir)
     if len(rebalance_log) < 2:
         raise ValueError("Need at least two rebalance snapshots to build monthly commentary context.")
 
@@ -188,12 +200,41 @@ def build_monthly_commentary_context(run_dir: Path) -> dict[str, Any]:
         benchmark_return = equity_perf_row.get("benchmark_return", 0.0)
         active_return = float(portfolio_return) - float(benchmark_return)
 
+    analysis_date = str(current_row.get("trade_date", ""))
+    period_start = str(performance_row.get("trade_date", ""))
+    period_end = str(current_row.get("trade_date", ""))
+    nav_start_after_rebalance = float(performance_row.get("nav_after_costs", 0.0))
+    nav_before_rebalance = float(current_row.get("nav_before", 0.0))
+    nav_after_current_rebalance = float(current_row.get("nav_after_costs", nav_before_rebalance))
+    is_partial_period = False
+    if daily_market_value is not None and not daily_market_value.empty:
+        current_trade_date = pd.Timestamp(str(current_row.get("trade_date", "")))
+        daily_after = daily_market_value[daily_market_value["trade_date"] >= current_trade_date]
+        if not daily_after.empty and pd.Timestamp(daily_after.iloc[-1]["trade_date"]) > current_trade_date:
+            start_daily = daily_after[daily_after["trade_date"] == current_trade_date]
+            if not start_daily.empty:
+                start_row = start_daily.iloc[-1]
+                latest_row = daily_after.iloc[-1]
+                start_portfolio = float(start_row.get("portfolio_value", 0.0))
+                start_benchmark = float(start_row.get("benchmark_value", 0.0))
+                latest_portfolio = float(latest_row.get("portfolio_value", 0.0))
+                latest_benchmark = float(latest_row.get("benchmark_value", 0.0))
+                if start_portfolio > 0 and start_benchmark > 0:
+                    portfolio_return = latest_portfolio / start_portfolio - 1.0
+                    benchmark_return = latest_benchmark / start_benchmark - 1.0
+                    active_return = float(portfolio_return) - float(benchmark_return)
+                    analysis_date = pd.Timestamp(latest_row["trade_date"]).strftime("%Y-%m-%d")
+                    period_start = current_trade_date.strftime("%Y-%m-%d")
+                    period_end = analysis_date
+                    nav_start_after_rebalance = start_portfolio
+                    nav_before_rebalance = latest_portfolio
+                    is_partial_period = True
+
     previous_weights = dict(previous_row.get("target_weights", {}))
     current_weights = dict(current_row.get("target_weights", {}))
     top_adds, top_trims = _weight_deltas(previous_weights, current_weights, limit=10)
 
     initial_capital = float(summary.get("initial_capital", 0.0))
-    nav_before_rebalance = float(current_row.get("nav_before", 0.0))
     since_inception_return = (
         nav_before_rebalance / initial_capital - 1.0
         if initial_capital > 0
@@ -203,16 +244,17 @@ def build_monthly_commentary_context(run_dir: Path) -> dict[str, Any]:
     return {
         "run_dir": str(run_dir),
         "benchmark_symbol": str(summary.get("benchmark_symbol", "")).upper(),
-        "analysis_date": str(current_row.get("trade_date", "")),
-        "period_start": str(performance_row.get("trade_date", "")),
-        "period_end": str(current_row.get("trade_date", "")),
+        "analysis_date": analysis_date,
+        "period_start": period_start,
+        "period_end": period_end,
         "performance": {
             "portfolio_return": float(portfolio_return or 0.0),
             "benchmark_return": float(benchmark_return or 0.0),
             "active_return": float(active_return or 0.0),
-            "nav_start_after_rebalance": float(performance_row.get("nav_after_costs", 0.0)),
+            "is_partial_period": is_partial_period,
+            "nav_start_after_rebalance": nav_start_after_rebalance,
             "nav_before_current_rebalance": nav_before_rebalance,
-            "nav_after_current_rebalance": float(current_row.get("nav_after_costs", nav_before_rebalance)),
+            "nav_after_current_rebalance": nav_after_current_rebalance,
             "rebalance_cost": float(current_row.get("cost", 0.0)),
             "since_inception_return": since_inception_return,
             "total_return": float(summary.get("total_return", 0.0)),
